@@ -167,19 +167,17 @@ export function EmployeeDetail() {
     try {
       toast.info('Generating PDF...');
 
-      // 1. Add Photo if available
+      let photoBase64 = null;
+      // 1. Add Photo if available (Pre-load)
       if (employee.signedUrls?.photograph) {
         try {
-          // Use fetch blob method as reliable fallback for signed URLs
           const response = await fetch(employee.signedUrls.photograph);
           const blob = await response.blob();
-          const base64 = await new Promise<string>((resolve) => {
+          photoBase64 = await new Promise<string>((resolve) => {
             const reader = new FileReader();
             reader.onload = () => resolve(reader.result as string);
             reader.readAsDataURL(blob);
           });
-
-          doc.addImage(base64, 'JPEG', pageWidth - 50, 20, 30, 30);
         } catch (err) {
           console.error('Error loading image for PDF', err);
         }
@@ -187,7 +185,7 @@ export function EmployeeDetail() {
 
       // 2. Header
       doc.setFontSize(22);
-      doc.setTextColor(13, 148, 136); // Teal 600
+      doc.setTextColor(244, 122, 94); // Brand Color (Coral)
       doc.text('Employee Profile', 14, 25);
 
       doc.setFontSize(10);
@@ -195,18 +193,39 @@ export function EmployeeDetail() {
       doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 32);
 
       // 3. Employee Summary Layout
-      doc.setFillColor(240, 253, 250); // Teal 50
-      doc.rect(14, 40, pageWidth - 70, 35, 'F'); // Box for summary
+      doc.setFillColor(255, 246, 244); // Brand 50
+      doc.rect(14, 40, pageWidth - 28, 40, 'F'); // Full width box
 
-      doc.setFontSize(16);
+      doc.setFontSize(18);
       doc.setTextColor(31, 41, 55); // Gray 800
-      doc.text(employee.personalIdentity?.fullName || 'Unknown Name', 20, 52);
+      doc.text(employee.personalIdentity?.fullName || 'Unknown Name', 24, 62);
 
-      doc.setFontSize(10);
-      doc.setTextColor(75, 85, 99); // Gray 600
-      doc.text(`ID: ${employee.employeeId || 'N/A'}`, 20, 60);
-      doc.text(`Role: ${employee.company?.designation || 'N/A'}`, 20, 66);
-      doc.text(`Dept: ${employee.company?.department || 'N/A'}`, 20, 72);
+      // Add Photo with Aspect Ratio Lock
+      if (photoBase64) {
+        try {
+          const imgProps = doc.getImageProperties(photoBase64);
+          const ratio = imgProps.width / imgProps.height;
+
+          const maxH = 36; // Max height in mm
+          const maxW = 36; // Max width in mm
+
+          let w = maxW;
+          let h = w / ratio;
+
+          if (h > maxH) {
+            h = maxH;
+            w = h * ratio;
+          }
+
+          // Align right inside the box (Box ends at 14 + (pageWidth - 28) = pageWidth - 14)
+          const xPos = (pageWidth - 14) - w - 2;
+          const yPos = 40 + (40 - h) / 2; // Center vertically in 40mm high box
+
+          doc.addImage(photoBase64, 'JPEG', xPos, yPos, w, h);
+        } catch (e) {
+          console.log('Error adding image', e);
+        }
+      }
 
       let finalY = 85;
 
@@ -224,30 +243,12 @@ export function EmployeeDetail() {
           ['Emergency Contact', `${employee.emergencyContact?.name || ''} (${employee.emergencyContact?.phone || ''})`],
         ],
         theme: 'grid',
-        headStyles: { fillColor: [13, 148, 136], textColor: 255 },
+        headStyles: { fillColor: [244, 122, 94], textColor: 255 },
         columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50, textColor: 50 } },
       });
 
       finalY = (doc as any).lastAutoTable.finalY + 10;
 
-      // 5. Company Details Table
-      autoTable(doc, {
-        startY: finalY,
-        head: [['Company Details', '']],
-        body: [
-          ['Employee ID', employee.employeeId || 'N/A'],
-          ['Date of Joining', employee.company?.dateOfJoining ? new Date(employee.company.dateOfJoining).toLocaleDateString() : 'N/A'],
-          ['Designation', employee.company?.designation || 'N/A'],
-          ['Department', employee.company?.department || 'N/A'],
-          ['Office Location', employee.company?.officeLocation || 'N/A'],
-          ['Reporting Manager', employee.company?.reportingManager || 'N/A'],
-        ],
-        theme: 'grid',
-        headStyles: { fillColor: [13, 148, 136], textColor: 255 },
-        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50, textColor: 50 } },
-      });
-
-      finalY = (doc as any).lastAutoTable.finalY + 10;
 
       // 6. Address Details Table
       autoTable(doc, {
@@ -258,7 +259,7 @@ export function EmployeeDetail() {
           ['Permanent Address', employee.address?.permanentAddress || 'N/A'],
         ],
         theme: 'grid',
-        headStyles: { fillColor: [13, 148, 136], textColor: 255 },
+        headStyles: { fillColor: [244, 122, 94], textColor: 255 },
         columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50, textColor: 50 } },
       });
 
@@ -279,10 +280,21 @@ export function EmployeeDetail() {
 
       autoTable(doc, {
         startY: finalY,
-        head: [['Identity & Bank Details', '']],
-        body: [...idRows, ...bankRows],
+        head: [['Identity Details', '']],
+        body: idRows,
         theme: 'grid',
-        headStyles: { fillColor: [13, 148, 136], textColor: 255 },
+        headStyles: { fillColor: [244, 122, 94], textColor: 255 },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50, textColor: 50 } },
+      });
+
+      finalY = (doc as any).lastAutoTable.finalY + 10;
+
+      autoTable(doc, {
+        startY: finalY,
+        head: [['Bank Details', '']],
+        body: bankRows,
+        theme: 'grid',
+        headStyles: { fillColor: [244, 122, 94], textColor: 255 },
         columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50, textColor: 50 } },
       });
 
@@ -305,7 +317,7 @@ export function EmployeeDetail() {
         head: [['Qualification', 'Institution', 'Year']],
         body: eduRows,
         theme: 'striped',
-        headStyles: { fillColor: [100, 116, 139] },
+        headStyles: { fillColor: [244, 122, 94] },
       });
 
       finalY = (doc as any).lastAutoTable.finalY + 10;
@@ -319,8 +331,8 @@ export function EmployeeDetail() {
       let expRows = [['Fresher', '-', '-']];
       if (!employee.workExperience?.isFresher && employee.workExperience?.entries) {
         expRows = employee.workExperience.entries.map((exp: any) => [
-          exp.companyName || 'N/A',
-          exp.role || 'N/A',
+          exp.organization || 'N/A',
+          exp.designation || 'N/A',
           `${new Date(exp.startDate).toLocaleDateString()} - ${new Date(exp.endDate).toLocaleDateString()}`
         ]);
       }
@@ -330,7 +342,7 @@ export function EmployeeDetail() {
         head: [['Company', 'Role', 'Duration']],
         body: expRows,
         theme: 'striped',
-        headStyles: { fillColor: [100, 116, 139] },
+        headStyles: { fillColor: [244, 122, 94] },
       });
 
       doc.save(`${employee.personalIdentity?.fullName || 'employee'}_profile.pdf`);
@@ -408,7 +420,7 @@ export function EmployeeDetail() {
           <div className="space-y-6">
             {/* Profile Card */}
             <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
-              <div className="h-32 bg-gradient-to-r from-teal-500 to-emerald-600"></div>
+              <div className="h-32 bg-gradient-to-r from-teal-500 to-teal-600"></div>
               <div className="px-6 pb-6">
                 <div className="relative -mt-16 mb-4 flex justify-center">
                   <div className="w-32 h-32 bg-white rounded-full p-1 shadow-md">
@@ -524,19 +536,12 @@ export function EmployeeDetail() {
                 <InfoItem label="Gender" value={employee.personalIdentity?.gender} />
                 <InfoItem label="Blood Group" value={employee.personalIdentity?.bloodGroup} />
                 <InfoItem label="Marital Status" value={employee.personalIdentity?.maritalStatus} />
+                <InfoItem label="Email" value={employee.personalIdentity?.personalEmail} />
+                <InfoItem label="Phone" value={employee.personalIdentity?.mobileNumber} />
+                <InfoItem label="Emergency Contact" value={`${employee.emergencyContact?.name || 'N/A'} (${employee.emergencyContact?.phone || ''})`} />
               </div>
             </SectionCard>
 
-            {/* Company & Job */}
-            <SectionCard title="Job Details" icon={<Briefcase className="w-5 h-5" />}>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <InfoItem label="Department" value={employee.company?.department} />
-                <InfoItem label="Designation" value={employee.company?.designation} />
-                <InfoItem label="Date of Joining" value={employee.company?.dateOfJoining} icon={<Calendar className="w-3 h-3 text-gray-400" />} />
-                <InfoItem label="Office Location" value={employee.company?.officeLocation} icon={<MapPin className="w-3 h-3 text-gray-400" />} />
-                <InfoItem label="Reporting Manager" value={employee.company?.reportingManager} />
-              </div>
-            </SectionCard>
 
             {/* Address */}
             <SectionCard title="Address" icon={<MapPin className="w-5 h-5" />}>
@@ -620,15 +625,43 @@ export function EmployeeDetail() {
                     ) : (
                       <div className="space-y-4">
                         {employee.workExperience?.entries?.map((exp: any, index: number) => (
-                          <div key={index} className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 pb-4 border-b border-gray-200 last:border-0 last:pb-0">
-                            <div>
-                              <p className="font-medium text-gray-900">{exp.role}</p>
-                              <p className="text-sm text-gray-600">{exp.companyName}</p>
+                          <div key={index} className="gap-2 pb-4 border-b border-gray-200 last:border-0 last:pb-0">
+                            <div className="flex flex-col sm:flex-row sm:justify-between sm:items-start mb-2">
+                              <div>
+                                <p className="font-medium text-gray-900">{exp.designation}</p>
+                                <p className="text-sm text-gray-600">{exp.organization}</p>
+                              </div>
+                              <div className="text-right">
+                                <span className="text-xs text-gray-500 block">
+                                  {new Date(exp.startDate).toLocaleDateString()} - {new Date(exp.endDate).toLocaleDateString()}
+                                </span>
+                              </div>
                             </div>
-                            <div className="text-right">
-                              <span className="text-xs text-gray-500 block">
-                                {new Date(exp.startDate).toLocaleDateString()} - {new Date(exp.endDate).toLocaleDateString()}
-                              </span>
+
+                            {/* Experience Documents */}
+                            <div className="flex gap-3 mt-2">
+                              {employee.signedUrls?.experienceLetters?.[index] && (
+                                <a
+                                  href={employee.signedUrls.experienceLetters[index]}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 bg-teal-50 px-2 py-1 rounded border border-teal-100 transition-colors"
+                                >
+                                  <FileText className="w-3 h-3" />
+                                  Exp. Certificate
+                                </a>
+                              )}
+                              {employee.signedUrls?.relievingLetters?.[index] && (
+                                <a
+                                  href={employee.signedUrls.relievingLetters[index]}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="inline-flex items-center gap-1 text-xs text-teal-600 hover:text-teal-700 bg-teal-50 px-2 py-1 rounded border border-teal-100 transition-colors"
+                                >
+                                  <FileText className="w-3 h-3" />
+                                  Relieving Letter
+                                </a>
+                              )}
                             </div>
                           </div>
                         ))}

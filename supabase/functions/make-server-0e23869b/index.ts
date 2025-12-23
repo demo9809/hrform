@@ -115,6 +115,7 @@ app.post("/make-server-0e23869b/employees", async (c) => {
         dateOfBirth: formData.get('dateOfBirth'),
         gender: formData.get('gender'),
         bloodGroup: formData.get('bloodGroup'),
+        maritalStatus: formData.get('maritalStatus'),
         nationality: formData.get('nationality'),
         personalEmail: formData.get('personalEmail'),
         mobileNumber: formData.get('mobileNumber'),
@@ -325,6 +326,36 @@ app.get("/make-server-0e23869b/employees", async (c) => {
             signedUrls.educationCertificates = certUrls;
           }
 
+          if (employee.files.experienceLetters) {
+            const expUrls: string[] = [];
+            for (const path of employee.files.experienceLetters) {
+              if (path) {
+                const { data } = await supabase.storage
+                  .from(BUCKET_NAME)
+                  .createSignedUrl(path, 3600);
+                expUrls.push(data?.signedUrl || '');
+              } else {
+                expUrls.push('');
+              }
+            }
+            signedUrls.experienceLetters = expUrls;
+          }
+
+          if (employee.files.relievingLetters) {
+            const relUrls: string[] = [];
+            for (const path of employee.files.relievingLetters) {
+              if (path) {
+                const { data } = await supabase.storage
+                  .from(BUCKET_NAME)
+                  .createSignedUrl(path, 3600);
+                relUrls.push(data?.signedUrl || '');
+              } else {
+                relUrls.push('');
+              }
+            }
+            signedUrls.relievingLetters = relUrls;
+          }
+
           employee.signedUrls = signedUrls;
         }
 
@@ -381,6 +412,36 @@ app.get("/make-server-0e23869b/employees/:id", async (c) => {
           }
         }
         signedUrls.educationCertificates = certUrls;
+      }
+
+      if (employee.files.experienceLetters) {
+        const expUrls: string[] = [];
+        for (const path of employee.files.experienceLetters) {
+          if (path) {
+            const { data } = await supabase.storage
+              .from(BUCKET_NAME)
+              .createSignedUrl(path, 3600);
+            expUrls.push(data?.signedUrl || '');
+          } else {
+            expUrls.push('');
+          }
+        }
+        signedUrls.experienceLetters = expUrls;
+      }
+
+      if (employee.files.relievingLetters) {
+        const relUrls: string[] = [];
+        for (const path of employee.files.relievingLetters) {
+          if (path) {
+            const { data } = await supabase.storage
+              .from(BUCKET_NAME)
+              .createSignedUrl(path, 3600);
+            relUrls.push(data?.signedUrl || '');
+          } else {
+            relUrls.push('');
+          }
+        }
+        signedUrls.relievingLetters = relUrls;
       }
 
       employee.signedUrls = signedUrls;

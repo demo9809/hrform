@@ -29,6 +29,18 @@ export function OnboardingForm() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const stepTitles = [
+    "Personal Identity",
+    "Address Details",
+    "Government & Tax",
+    "Bank Details",
+    "Education",
+    "Work Experience",
+    "Emergency Contact",
+    "Photograph",
+    "Declarations"
+  ];
+
   // Form data
   const [formData, setFormData] = useState({
     // Section 1: Personal Identity
@@ -36,6 +48,7 @@ export function OnboardingForm() {
     dateOfBirth: '',
     gender: '',
     bloodGroup: '',
+    maritalStatus: '',
     nationality: 'Indian',
     personalEmail: '',
     mobileNumber: '',
@@ -234,7 +247,7 @@ export function OnboardingForm() {
     switch (step) {
       case 1: // Personal Identity
         if (!formData.fullName || !formData.dateOfBirth || !formData.gender ||
-          !formData.bloodGroup || !formData.nationality || !formData.personalEmail || !formData.mobileNumber) {
+          !formData.bloodGroup || !formData.maritalStatus || !formData.nationality || !formData.personalEmail || !formData.mobileNumber) {
           toast.error('Please fill all required fields');
           return false;
         }
@@ -351,6 +364,7 @@ export function OnboardingForm() {
         dateOfBirth: formData.dateOfBirth,
         gender: formData.gender,
         bloodGroup: formData.bloodGroup,
+        maritalStatus: formData.maritalStatus,
         nationality: formData.nationality,
         personalEmail: formData.personalEmail,
         mobileNumber: formData.mobileNumber,
@@ -446,18 +460,23 @@ export function OnboardingForm() {
     <div className="min-h-screen bg-gray-50 py-8">
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl text-gray-900 mb-2">Employee Onboarding Form</h1>
-          <p className="text-gray-600">Please provide accurate information as per official documents</p>
+        {/* Header & Logo */}
+        <div className="text-left mb-6">
+          <div className="flex justify-start mb-4">
+            <img src="/narrative-logo.png" alt="Narrative Space" className="h-10 object-contain" />
+          </div>
+          <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">Employee Onboarding</h1>
+          <p className="text-sm text-gray-600">Please provide accurate information as per official documents</p>
         </div>
 
-        {/* Progress Bar */}
+        {/* Progress Display */}
         <div className="mb-8">
-          <div className="flex items-center justify-between mb-2">
+          {/* Desktop Stepper */}
+          <div className="hidden md:flex items-center justify-between mb-2">
             {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map(step => (
               <div key={step} className="flex items-center flex-1">
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs border-2 transition-colors ${step < currentStep
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-medium border-2 transition-colors ${step < currentStep
                     ? 'bg-teal-600 border-teal-600 text-white'
                     : step === currentStep
                       ? 'bg-white border-teal-600 text-teal-600'
@@ -468,12 +487,26 @@ export function OnboardingForm() {
                 </div>
                 {step < TOTAL_STEPS && (
                   <div
-                    className={`flex-1 h-1 mx-1 transition-colors ${step < currentStep ? 'bg-teal-600' : 'bg-gray-300'
+                    className={`flex-1 h-1 mx-2 rounded transition-colors ${step < currentStep ? 'bg-teal-600' : 'bg-gray-200'
                       }`}
                   />
                 )}
               </div>
             ))}
+          </div>
+
+          {/* Mobile Stepper */}
+          <div className="md:hidden">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-teal-600">Step {currentStep} of {TOTAL_STEPS}</span>
+              <span className="text-sm font-medium text-gray-900">{stepTitles[currentStep - 1]}</span>
+            </div>
+            <div className="h-2 bg-gray-200 rounded-full overflow-hidden">
+              <div
+                className="h-full bg-teal-600 rounded-full transition-all duration-300 ease-in-out"
+                style={{ width: `${(currentStep / TOTAL_STEPS) * 100}%` }}
+              />
+            </div>
           </div>
         </div>
 
@@ -630,6 +663,21 @@ function Step1PersonalIdentity({ formData, onChange }: any) {
             <option value="O-">O-</option>
             <option value="AB+">AB+</option>
             <option value="AB-">AB-</option>
+          </select>
+        </div>
+
+        <div>
+          <label className="block text-sm text-gray-700 mb-2">Marital Status *</label>
+          <select
+            value={formData.maritalStatus}
+            onChange={(e) => onChange('maritalStatus', e.target.value)}
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+          >
+            <option value="">Select Marital Status</option>
+            <option value="Single">Single</option>
+            <option value="Married">Married</option>
+            <option value="Divorced">Divorced</option>
+            <option value="Widowed">Widowed</option>
           </select>
         </div>
 
