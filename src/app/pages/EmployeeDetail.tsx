@@ -671,6 +671,7 @@ export function EmployeeDetail() {
   );
 }
 
+
 // Subcomponents for cleaner code
 function SectionCard({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
@@ -719,42 +720,6 @@ function IDItem({ label, value, docUrl, icon }: { label: string; value: string; 
           title="View/Download Document"
         >
           <Download className="w-4 h-4" />
-        </a>
-      )}
-    </div>
-  )
-}
-  )
-}
-
-function InfoItem({ label, value, icon, fullWidth = false }: { label: string; value: string; icon?: React.ReactNode; fullWidth?: boolean }) {
-  return (
-    <div className={fullWidth ? 'w-full' : ''}>
-      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 opacity-80">{label}</p>
-      <div className="flex items-center gap-2 text-sm text-gray-900 font-medium">
-        {icon}
-        <span>{value || 'N/A'}</span>
-      </div>
-    </div>
-  )
-}
-
-function IDItem({ label, value, docUrl }: { label: string; value: string; docUrl?: string }) {
-  return (
-    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg group hover:bg-gray-100 transition-colors">
-      <div>
-        <p className="text-xs text-gray-500">{label}</p>
-        <p className="text-sm font-medium text-gray-900">{value || 'N/A'}</p>
-      </div>
-      {docUrl && (
-        <a
-          href={docUrl}
-          target="_blank"
-          rel="noopener noreferrer"
-          className="text-teal-600 p-2 hover:bg-white rounded-lg transition-colors opacity-0 group-hover:opacity-100"
-          title="View Document"
-        >
-          <FileText className="w-4 h-4" />
         </a>
       )}
     </div>
