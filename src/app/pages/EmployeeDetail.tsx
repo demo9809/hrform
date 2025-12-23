@@ -17,7 +17,12 @@ import {
   LogOut,
   Calendar,
   Building,
+  Edit,
+  FileDown,
 } from 'lucide-react';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { EditEmployeeModal } from '../components/EditEmployeeModal';
 import { useAuth, supabase } from '../contexts/AuthContext';
 import { SUPABASE_URL } from '../../utils/supabase/client';
 
@@ -28,6 +33,7 @@ export function EmployeeDetail() {
   const [employee, setEmployee] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [markingPrepared, setMarkingPrepared] = useState(false);
+  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -130,6 +136,89 @@ export function EmployeeDetail() {
     toast.success('Opening all documents...');
   };
 
+  const handleExportPDF = () => {
+    if (!employee) return;
+
+    const doc = new jsPDF();
+    const pageWidth = doc.internal.pageSize.width;
+
+    // Header
+    doc.setFontSize(20);
+    doc.setTextColor(13, 148, 136); // Teal 600
+    doc.text('Employee Profile', 14, 20);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 28);
+
+    // Employee Summary
+    doc.setFillColor(240, 253, 250); // Teal 50
+    doc.rect(14, 35, pageWidth - 28, 40, 'F');
+
+    doc.setFontSize(14);
+    doc.setTextColor(0);
+    doc.text(employee.personalIdentity?.fullName || '', 20, 48);
+
+    doc.setFontSize(10);
+    doc.setTextColor(100);
+    doc.text(`Employee ID: ${employee.employeeId || 'N/A'}`, 20, 56);
+    doc.text(`Designation: ${employee.company?.designation || 'N/A'}`, 20, 62);
+    doc.text(`Department: ${employee.company?.department || 'N/A'}`, 20, 68);
+
+    let finalY = 85;
+
+    // Personal Details
+    autoTable(doc, {
+      startY: finalY,
+      head: [['Personal Details', '']],
+      body: [
+        ['Full Name', employee.personalIdentity?.fullName || 'N/A'],
+        ['Date of Birth', employee.personalIdentity?.dateOfBirth || 'N/A'],
+        ['Gender', employee.personalIdentity?.gender || 'N/A'],
+        ['Email', employee.personalIdentity?.personalEmail || 'N/A'],
+        ['Phone', employee.personalIdentity?.mobileNumber || 'N/A'],
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [13, 148, 136], textColor: 255 },
+      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 } },
+    });
+
+    finalY = (doc as any).lastAutoTable.finalY + 10;
+
+    // Company Details
+    autoTable(doc, {
+      startY: finalY,
+      head: [['Company Details', '']],
+      body: [
+        ['Date of Joining', employee.company?.dateOfJoining || 'N/A'],
+        ['Office Location', employee.company?.officeLocation || 'N/A'],
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [13, 148, 136], textColor: 255 },
+      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 } },
+    });
+
+    finalY = (doc as any).lastAutoTable.finalY + 10;
+
+    // Banking Details (Sensitive)
+    autoTable(doc, {
+      startY: finalY,
+      head: [['Banking Details', '']],
+      body: [
+        ['Account Holder', employee.bankDetails?.accountHolderName || 'N/A'],
+        ['Bank Name', employee.bankDetails?.bankName || 'N/A'],
+        ['Account Number', employee.bankDetails?.accountNumber || 'N/A'],
+        ['IFSC Code', employee.bankDetails?.ifscCode || 'N/A'],
+      ],
+      theme: 'grid',
+      headStyles: { fillColor: [13, 148, 136], textColor: 255 },
+      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 } },
+    });
+
+    doc.save(`${employee.personalIdentity?.fullName || 'employee'}-profile.pdf`);
+    toast.success('PDF downloaded successfully');
+  };
+
   const handleSignOut = async () => {
     await signOut();
     navigate('/admin/login');
@@ -202,16 +291,45 @@ export function EmployeeDetail() {
       <div className="ml-64 p-8">
         {/* Header */}
         <div className="mb-8">
-          <button
-            onClick={() => navigate('/admin/employees')}
-            className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
-          >
-            <ArrowLeft className="w-4 h-4" />
-            Back to Employee List
-          </button>
-          <h1 className="text-3xl text-gray-900 mb-2">Employee Details</h1>
-          <p className="text-gray-600">Complete employee information and ID card preparation</p>
+          <div className="flex justify-between items-start">
+            <div>
+              <button
+                onClick={() => navigate('/admin/employees')}
+                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
+              >
+                <ArrowLeft className="w-4 h-4" />
+                Back to Employee List
+              </button>
+              <h1 className="text-3xl text-gray-900 mb-2">Employee Details</h1>
+              <p className="text-gray-600">Complete employee information and ID card preparation</p>
+            </div>
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsEditModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+              >
+                <Edit className="w-4 h-4" />
+                Edit Details
+              </button>
+              <button
+                onClick={handleExportPDF}
+                className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
+              >
+                <FileDown className="w-4 h-4" />
+                Export PDF
+              </button>
+            </div>
+          </div>
         </div>
+
+        {employee && (
+          <EditEmployeeModal
+            employee={employee}
+            isOpen={isEditModalOpen}
+            onClose={() => setIsEditModalOpen(false)}
+            onUpdate={fetchEmployee}
+          />
+        )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Left Column - Profile & Actions */}
@@ -231,10 +349,10 @@ export function EmployeeDetail() {
                   )}
                 </div>
                 <h2 className="text-xl text-gray-900 text-center mb-1">
-                  {employee.personalDetails?.fullName}
+                  {employee.personalIdentity?.fullName}
                 </h2>
-                <p className="text-gray-600 text-center mb-1">{employee.company?.designation}</p>
-                <p className="text-sm text-gray-500 text-center">{employee.company?.employeeId}</p>
+                <p className="text-gray-600 text-center mb-1">{employee.company?.designation || 'Designation N/A'}</p>
+                <p className="text-sm text-gray-500 text-center">{employee.employeeId}</p>
 
                 <div className="mt-4 w-full">
                   <span
@@ -304,14 +422,14 @@ export function EmployeeDetail() {
               title="Personal Details"
               icon={<Users className="w-5 h-5" />}
               items={[
-                { label: 'Full Name', value: employee.personalDetails?.fullName },
-                { label: 'Date of Birth', value: new Date(employee.personalDetails?.dateOfBirth).toLocaleDateString() },
-                { label: 'Gender', value: employee.personalDetails?.gender },
-                { label: 'Blood Group', value: employee.personalDetails?.bloodGroup },
-                { label: 'Phone', value: employee.personalDetails?.phone, icon: <Phone className="w-4 h-4 text-gray-400" /> },
-                { label: 'Email', value: employee.personalDetails?.email, icon: <Mail className="w-4 h-4 text-gray-400" /> },
-                { label: 'Emergency Contact', value: employee.personalDetails?.emergencyContactName },
-                { label: 'Emergency Phone', value: employee.personalDetails?.emergencyContactPhone },
+                { label: 'Full Name', value: employee.personalIdentity?.fullName },
+                { label: 'Date of Birth', value: employee.personalIdentity?.dateOfBirth ? new Date(employee.personalIdentity.dateOfBirth).toLocaleDateString() : 'N/A' },
+                { label: 'Gender', value: employee.personalIdentity?.gender },
+                { label: 'Blood Group', value: employee.personalIdentity?.bloodGroup },
+                { label: 'Phone', value: employee.personalIdentity?.mobileNumber, icon: <Phone className="w-4 h-4 text-gray-400" /> },
+                { label: 'Email', value: employee.personalIdentity?.personalEmail, icon: <Mail className="w-4 h-4 text-gray-400" /> },
+                { label: 'Emergency Contact', value: employee.emergencyContact?.name },
+                { label: 'Emergency Phone', value: employee.emergencyContact?.phone },
               ]}
             />
 
@@ -320,8 +438,8 @@ export function EmployeeDetail() {
               title="Address Details"
               icon={<MapPin className="w-5 h-5" />}
               items={[
-                { label: 'Current Address', value: employee.address?.current, fullWidth: true },
-                { label: 'Permanent Address', value: employee.address?.permanent, fullWidth: true },
+                { label: 'Current Address', value: employee.address?.currentAddress, fullWidth: true },
+                { label: 'Permanent Address', value: employee.address?.permanentAddress, fullWidth: true },
               ]}
             />
 
@@ -330,9 +448,9 @@ export function EmployeeDetail() {
               title="ID & Legal Details"
               icon={<IdCardIcon className="w-5 h-5" />}
               items={[
-                { label: 'Aadhaar Number', value: employee.idDetails?.aadhaar },
-                { label: 'PAN Number', value: employee.idDetails?.pan },
-                { label: 'Passport Number', value: employee.idDetails?.passport || 'Not Provided' },
+                { label: 'Aadhaar Number', value: employee.governmentTax?.aadhaarNumber },
+                { label: 'PAN Number', value: employee.governmentTax?.panNumber },
+                { label: 'Passport Number', value: employee.governmentTax?.passportNumber || 'Not Provided' },
               ]}
               documents={[
                 { label: 'Aadhaar Document', url: employee.signedUrls?.aadhaarDoc },
@@ -346,15 +464,16 @@ export function EmployeeDetail() {
               title="Education & Experience"
               icon={<GraduationCap className="w-5 h-5" />}
               items={[
-                { label: 'Highest Qualification', value: employee.education?.qualification },
-                { label: 'Institution', value: employee.education?.institution },
-                { label: 'Year of Completion', value: employee.education?.yearOfCompletion },
-                { label: 'Experience Type', value: employee.experience?.isFresher ? 'Fresher' : 'Experienced' },
-                ...(employee.experience?.isFresher ? [] : [
-                  { label: 'Previous Company', value: employee.experience?.previousCompany },
-                  { label: 'Previous Role', value: employee.experience?.role },
-                  { label: 'Years of Experience', value: employee.experience?.years },
-                ]),
+                { label: 'Highest Qualification', value: employee.education?.[0]?.qualification },
+                { label: 'Institution', value: employee.education?.[0]?.institution },
+                { label: 'Year of Completion', value: employee.education?.[0]?.yearOfCompletion },
+                { label: 'Experience Type', value: employee.workExperience?.isFresher ? 'Fresher' : 'Experienced' },
+                ...(!employee.workExperience?.isFresher ? [
+                  // Mapping first experience entry if available
+                  { label: 'Previous Company', value: employee.workExperience?.entries?.[0]?.companyName },
+                  { label: 'Previous Role', value: employee.workExperience?.entries?.[0]?.role },
+                  { label: 'Years of Experience', value: employee.workExperience?.entries?.length ? `${employee.workExperience.entries.length} entries` : 'N/A' },
+                ] : []),
               ]}
             />
 
@@ -363,11 +482,11 @@ export function EmployeeDetail() {
               title="Company Details"
               icon={<Briefcase className="w-5 h-5" />}
               items={[
-                { label: 'Employee ID', value: employee.company?.employeeId },
-                { label: 'Department', value: employee.company?.department },
-                { label: 'Designation', value: employee.company?.designation },
-                { label: 'Date of Joining', value: new Date(employee.company?.dateOfJoining).toLocaleDateString(), icon: <Calendar className="w-4 h-4 text-gray-400" /> },
-                { label: 'Office Location', value: employee.company?.officeLocation, icon: <Building className="w-4 h-4 text-gray-400" /> },
+                { label: 'Employee ID', value: employee.employeeId },
+                { label: 'Department', value: employee.company?.department || 'N/A' },
+                { label: 'Designation', value: employee.company?.designation || 'N/A' },
+                { label: 'Date of Joining', value: employee.company?.dateOfJoining ? new Date(employee.company.dateOfJoining).toLocaleDateString() : 'N/A', icon: <Calendar className="w-4 h-4 text-gray-400" /> },
+                { label: 'Office Location', value: employee.company?.officeLocation || 'N/A', icon: <Building className="w-4 h-4 text-gray-400" /> },
               ]}
             />
           </div>
