@@ -1,7 +1,7 @@
 import { Hono } from "npm:hono";
 import { cors } from "npm:hono/cors";
 import { logger } from "npm:hono/logger";
-import * as kv from "./kv_store.tsx";
+import * as kv from "./kv_store.ts";
 import { createClient } from "npm:@supabase/supabase-js";
 
 const app = new Hono();
@@ -33,7 +33,7 @@ const BUCKET_NAME = 'make-0e23869b-employee-docs';
 async function initStorage() {
   const { data: buckets } = await supabase.storage.listBuckets();
   const bucketExists = buckets?.some(bucket => bucket.name === BUCKET_NAME);
-  
+
   if (!bucketExists) {
     console.log('Creating storage bucket:', BUCKET_NAME);
     await supabase.storage.createBucket(BUCKET_NAME, {
@@ -49,14 +49,14 @@ initStorage().catch(console.error);
 // Helper to verify admin auth
 async function verifyAdmin(authHeader: string | undefined) {
   if (!authHeader) return null;
-  
+
   const accessToken = authHeader.split(' ')[1];
   const { data: { user }, error } = await supabase.auth.getUser(accessToken);
-  
+
   if (error || !user) {
     return null;
   }
-  
+
   return user;
 }
 
@@ -69,7 +69,7 @@ app.get("/make-server-0e23869b/health", (c) => {
 app.post("/make-server-0e23869b/admin/signup", async (c) => {
   try {
     const { email, password, name } = await c.req.json();
-    
+
     const { data, error } = await supabase.auth.admin.createUser({
       email,
       password,
@@ -77,12 +77,12 @@ app.post("/make-server-0e23869b/admin/signup", async (c) => {
       // Automatically confirm the user's email since an email server hasn't been configured
       email_confirm: true
     });
-    
+
     if (error) {
       console.error('Admin signup error:', error);
       return c.json({ error: error.message }, 400);
     }
-    
+
     return c.json({ user: data.user }, 201);
   } catch (error) {
     console.error('Admin signup exception:', error);
@@ -97,16 +97,16 @@ app.post("/make-server-0e23869b/admin/signup", async (c) => {
 app.post("/make-server-0e23869b/employees", async (c) => {
   try {
     const formData = await c.req.formData();
-    
+
     // Generate unique employee ID
     const timestamp = Date.now();
     const randomSuffix = Math.random().toString(36).substring(2, 7).toUpperCase();
     const employeeId = `EMP-${randomSuffix}-${timestamp}`;
-    
+
     // Parse education and work experience
     const education = JSON.parse(formData.get('education') as string || '[]');
     const workExperience = JSON.parse(formData.get('workExperience') as string || '[]');
-    
+
     // Extract form fields
     const employee = {
       id: employeeId,
@@ -159,29 +159,29 @@ app.post("/make-server-0e23869b/employees", async (c) => {
       idCardPrepared: false,
       submittedAt: new Date().toISOString(),
     };
-    
+
     // Handle file uploads
     const photograph = formData.get('photograph') as File | null;
-    
+
     const fileUrls: any = {};
-    
+
     // Upload photograph
     if (photograph) {
       const photoPath = `${employeeId}/photograph-${Date.now()}.${photograph.name.split('.').pop()}`;
       const photoBuffer = await photograph.arrayBuffer();
-      
+
       const { data, error } = await supabase.storage
         .from(BUCKET_NAME)
         .upload(photoPath, photoBuffer, {
           contentType: photograph.type,
           upsert: false
         });
-      
+
       if (!error) {
         fileUrls.photograph = photoPath;
       }
     }
-    
+
     // Upload education certificates
     const educationCertPaths: string[] = [];
     for (let i = 0; i < education.length; i++) {
@@ -189,14 +189,14 @@ app.post("/make-server-0e23869b/employees", async (c) => {
       if (cert) {
         const certPath = `${employeeId}/education-cert-${i}-${Date.now()}.${cert.name.split('.').pop()}`;
         const certBuffer = await cert.arrayBuffer();
-        
+
         const { error } = await supabase.storage
           .from(BUCKET_NAME)
           .upload(certPath, certBuffer, {
             contentType: cert.type,
             upsert: false
           });
-        
+
         if (!error) {
           educationCertPaths.push(certPath);
         }
@@ -205,26 +205,26 @@ app.post("/make-server-0e23869b/employees", async (c) => {
       }
     }
     fileUrls.educationCertificates = educationCertPaths;
-    
+
     // Upload experience letters
     const experienceLetterPaths: string[] = [];
     const relievingLetterPaths: string[] = [];
-    
+
     for (let i = 0; i < workExperience.length; i++) {
       const expLetter = formData.get(`experienceLetter_${i}`) as File | null;
       const relLetter = formData.get(`relievingLetter_${i}`) as File | null;
-      
+
       if (expLetter) {
         const letterPath = `${employeeId}/exp-letter-${i}-${Date.now()}.${expLetter.name.split('.').pop()}`;
         const letterBuffer = await expLetter.arrayBuffer();
-        
+
         const { error } = await supabase.storage
           .from(BUCKET_NAME)
           .upload(letterPath, letterBuffer, {
             contentType: expLetter.type,
             upsert: false
           });
-        
+
         if (!error) {
           experienceLetterPaths.push(letterPath);
         } else {
@@ -233,18 +233,18 @@ app.post("/make-server-0e23869b/employees", async (c) => {
       } else {
         experienceLetterPaths.push('');
       }
-      
+
       if (relLetter) {
         const relPath = `${employeeId}/rel-letter-${i}-${Date.now()}.${relLetter.name.split('.').pop()}`;
         const relBuffer = await relLetter.arrayBuffer();
-        
+
         const { error } = await supabase.storage
           .from(BUCKET_NAME)
           .upload(relPath, relBuffer, {
             contentType: relLetter.type,
             upsert: false
           });
-        
+
         if (!error) {
           relievingLetterPaths.push(relPath);
         } else {
@@ -254,29 +254,29 @@ app.post("/make-server-0e23869b/employees", async (c) => {
         relievingLetterPaths.push('');
       }
     }
-    
+
     fileUrls.experienceLetters = experienceLetterPaths;
     fileUrls.relievingLetters = relievingLetterPaths;
-    
+
     // Store employee data with file paths
     const employeeWithFiles = {
       ...employee,
       files: fileUrls,
     };
-    
+
     await kv.set(`employee:${employeeId}`, employeeWithFiles);
-    
+
     // Also add to employee list
     const employeeListKey = 'employees:list';
     const existingList = await kv.get(employeeListKey) || [];
     await kv.set(employeeListKey, [...existingList, employeeId]);
-    
-    return c.json({ 
-      success: true, 
+
+    return c.json({
+      success: true,
       employeeId,
       message: 'Employee onboarding completed successfully'
     }, 201);
-    
+
   } catch (error) {
     console.error('Employee submission error:', error);
     return c.json({ error: 'Failed to submit employee data' }, 500);
@@ -288,28 +288,28 @@ app.get("/make-server-0e23869b/employees", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
     const user = await verifyAdmin(authHeader);
-    
+
     if (!user) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
-    
+
     const employeeIds = await kv.get('employees:list') || [];
     const employees = [];
-    
+
     for (const id of employeeIds) {
       const employee = await kv.get(`employee:${id}`);
       if (employee) {
         // Generate signed URLs for files
         if (employee.files) {
           const signedUrls: any = {};
-          
+
           if (employee.files.photograph) {
             const { data } = await supabase.storage
               .from(BUCKET_NAME)
               .createSignedUrl(employee.files.photograph, 3600); // 1 hour expiry
             signedUrls.photograph = data?.signedUrl || null;
           }
-          
+
           if (employee.files.educationCertificates) {
             const certUrls: string[] = [];
             for (const certPath of employee.files.educationCertificates) {
@@ -324,16 +324,16 @@ app.get("/make-server-0e23869b/employees", async (c) => {
             }
             signedUrls.educationCertificates = certUrls;
           }
-          
+
           employee.signedUrls = signedUrls;
         }
-        
+
         employees.push(employee);
       }
     }
-    
+
     return c.json({ employees });
-    
+
   } catch (error) {
     console.error('Get employees error:', error);
     return c.json({ error: 'Failed to fetch employees' }, 500);
@@ -345,29 +345,29 @@ app.get("/make-server-0e23869b/employees/:id", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
     const user = await verifyAdmin(authHeader);
-    
+
     if (!user) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
-    
+
     const employeeId = c.req.param('id');
     const employee = await kv.get(`employee:${employeeId}`);
-    
+
     if (!employee) {
       return c.json({ error: 'Employee not found' }, 404);
     }
-    
+
     // Generate signed URLs for files
     if (employee.files) {
       const signedUrls: any = {};
-      
+
       if (employee.files.photograph) {
         const { data } = await supabase.storage
           .from(BUCKET_NAME)
           .createSignedUrl(employee.files.photograph, 3600);
         signedUrls.photograph = data?.signedUrl || null;
       }
-      
+
       if (employee.files.educationCertificates) {
         const certUrls: string[] = [];
         for (const certPath of employee.files.educationCertificates) {
@@ -382,12 +382,12 @@ app.get("/make-server-0e23869b/employees/:id", async (c) => {
         }
         signedUrls.educationCertificates = certUrls;
       }
-      
+
       employee.signedUrls = signedUrls;
     }
-    
+
     return c.json({ employee });
-    
+
   } catch (error) {
     console.error('Get employee error:', error);
     return c.json({ error: 'Failed to fetch employee' }, 500);
@@ -399,29 +399,29 @@ app.patch("/make-server-0e23869b/employees/:id", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
     const user = await verifyAdmin(authHeader);
-    
+
     if (!user) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
-    
+
     const employeeId = c.req.param('id');
     const updates = await c.req.json();
-    
+
     const employee = await kv.get(`employee:${employeeId}`);
-    
+
     if (!employee) {
       return c.json({ error: 'Employee not found' }, 404);
     }
-    
+
     const updatedEmployee = {
       ...employee,
       ...updates,
     };
-    
+
     await kv.set(`employee:${employeeId}`, updatedEmployee);
-    
+
     return c.json({ employee: updatedEmployee });
-    
+
   } catch (error) {
     console.error('Update employee error:', error);
     return c.json({ error: 'Failed to update employee' }, 500);
@@ -433,28 +433,28 @@ app.post("/make-server-0e23869b/employees/:id/id-card-prepared", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
     const user = await verifyAdmin(authHeader);
-    
+
     if (!user) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
-    
+
     const employeeId = c.req.param('id');
     const employee = await kv.get(`employee:${employeeId}`);
-    
+
     if (!employee) {
       return c.json({ error: 'Employee not found' }, 404);
     }
-    
+
     const updatedEmployee = {
       ...employee,
       idCardPrepared: true,
       status: 'active',
     };
-    
+
     await kv.set(`employee:${employeeId}`, updatedEmployee);
-    
+
     return c.json({ employee: updatedEmployee });
-    
+
   } catch (error) {
     console.error('Mark ID card prepared error:', error);
     return c.json({ error: 'Failed to mark ID card as prepared' }, 500);
@@ -466,44 +466,44 @@ app.get("/make-server-0e23869b/dashboard/stats", async (c) => {
   try {
     const authHeader = c.req.header('Authorization');
     const user = await verifyAdmin(authHeader);
-    
+
     if (!user) {
       return c.json({ error: 'Unauthorized' }, 401);
     }
-    
+
     const employeeIds = await kv.get('employees:list') || [];
     const employees = [];
-    
+
     for (const id of employeeIds) {
       const employee = await kv.get(`employee:${id}`);
       if (employee) {
         employees.push(employee);
       }
     }
-    
+
     const totalEmployees = employees.length;
-    
+
     // Count new submissions today
     const today = new Date().toISOString().split('T')[0];
-    const newToday = employees.filter(emp => 
+    const newToday = employees.filter(emp =>
       emp.submittedAt && emp.submittedAt.startsWith(today)
     ).length;
-    
+
     // Count pending ID cards
     const pendingIdCards = employees.filter(emp => !emp.idCardPrepared).length;
-    
+
     // Recent employees (last 5)
     const recentEmployees = employees
       .sort((a, b) => new Date(b.submittedAt).getTime() - new Date(a.submittedAt).getTime())
       .slice(0, 5);
-    
+
     return c.json({
       totalEmployees,
       newToday,
       pendingIdCards,
       recentEmployees,
     });
-    
+
   } catch (error) {
     console.error('Get dashboard stats error:', error);
     return c.json({ error: 'Failed to fetch dashboard stats' }, 500);
