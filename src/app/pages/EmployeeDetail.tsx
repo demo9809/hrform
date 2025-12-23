@@ -13,12 +13,14 @@ import {
   GraduationCap,
   FileText,
   IdCard as IdCardIcon,
-  LayoutDashboard,
-  LogOut,
   Calendar,
   Building,
   Edit,
   FileDown,
+  Globe,
+  CreditCard,
+  User,
+  Clock
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -124,6 +126,9 @@ export function EmployeeDetail() {
       { url: employee?.signedUrls?.aadhaarDoc, name: 'aadhaar-document' },
       { url: employee?.signedUrls?.panDoc, name: 'pan-document' },
       { url: employee?.signedUrls?.passportDoc, name: 'passport-document' },
+      ...(employee?.signedUrls?.educationCertificates || []).map((url: string, index: number) => ({
+        url, name: `education-certificate-${index + 1}`
+      }))
     ];
 
     for (const doc of docs) {
@@ -136,123 +141,223 @@ export function EmployeeDetail() {
     toast.success('Opening all documents...');
   };
 
-  const getBase64FromUrl = async (url: string): Promise<string> => {
-    const data = await fetch(url);
-    const blob = await data.blob();
-    return new Promise((resolve) => {
-      const reader = new FileReader();
-      reader.readAsDataURL(blob);
-      reader.onloadend = () => {
-        const base64data = reader.result as string;
-        resolve(base64data);
+  // Helper to load image for PDF with CORS handling
+  const loadImage = (url: string): Promise<string> => {
+    return new Promise((resolve, reject) => {
+      const img = new Image();
+      img.crossOrigin = 'Anonymous';
+      img.src = url;
+      img.onload = () => {
+        const canvas = document.createElement('canvas');
+        canvas.width = img.width;
+        canvas.height = img.height;
+        const ctx = canvas.getContext('2d');
+        ctx?.drawImage(img, 0, 0);
+        resolve(canvas.toDataURL('image/jpeg'));
       };
+      img.onerror = (e) => reject(e);
     });
   };
 
   const handleExportPDF = async () => {
     if (!employee) return;
-
     const doc = new jsPDF();
     const pageWidth = doc.internal.pageSize.width;
 
-    // Header
-    doc.setFontSize(20);
-    doc.setTextColor(13, 148, 136); // Teal 600
-    doc.text('Employee Profile', 14, 20);
+    try {
+      toast.info('Generating PDF...');
 
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Generated on: ${new Date().toLocaleDateString()}`, 14, 28);
+      // 1. Add Photo if available
+      if (employee.signedUrls?.profilePhoto) {
+        try {
+          // Use fetch blob method as reliable fallback for signed URLs
+          const response = await fetch(employee.signedUrls.profilePhoto);
+          const blob = await response.blob();
+          const base64 = await new Promise<string>((resolve) => {
+            const reader = new FileReader();
+            reader.onload = () => resolve(reader.result as string);
+            reader.readAsDataURL(blob);
+          });
 
-    // Employee Summary
-    doc.setFillColor(240, 253, 250); // Teal 50
-    doc.rect(14, 35, pageWidth - 28, 40, 'F');
+          doc.addImage(base64, 'JPEG', pageWidth - 50, 20, 30, 30);
+        } catch (err) {
+          console.error('Error loading image for PDF', err);
+        }
+      }
 
-    doc.setFontSize(14);
-    doc.setTextColor(0);
-    doc.text(employee.personalIdentity?.fullName || '', 20, 48);
+      // 2. Header
+      doc.setFontSize(22);
+      doc.setTextColor(13, 148, 136); // Teal 600
+      doc.text('Employee Profile', 14, 25);
 
-    doc.setFontSize(10);
-    doc.setTextColor(100);
-    doc.text(`Employee ID: ${employee.employeeId || 'N/A'}`, 20, 56);
-    doc.text(`Designation: ${employee.company?.designation || 'N/A'}`, 20, 62);
-    doc.text(`Department: ${employee.company?.department || 'N/A'}`, 20, 68);
+      doc.setFontSize(10);
+      doc.setTextColor(100);
+      doc.text(`Generated: ${new Date().toLocaleDateString()}`, 14, 32);
 
-    let finalY = 85;
+      // 3. Employee Summary Layout
+      doc.setFillColor(240, 253, 250); // Teal 50
+      doc.rect(14, 40, pageWidth - 70, 35, 'F'); // Box for summary
 
-    // Personal Details
-    autoTable(doc, {
-      startY: finalY,
-      head: [['Personal Details', '']],
-      body: [
-        ['Full Name', employee.personalIdentity?.fullName || 'N/A'],
-        ['Date of Birth', employee.personalIdentity?.dateOfBirth || 'N/A'],
-        ['Gender', employee.personalIdentity?.gender || 'N/A'],
-        ['Email', employee.personalIdentity?.personalEmail || 'N/A'],
-        ['Phone', employee.personalIdentity?.mobileNumber || 'N/A'],
-      ],
-      theme: 'grid',
-      headStyles: { fillColor: [13, 148, 136], textColor: 255 },
-      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 } },
-    });
+      doc.setFontSize(16);
+      doc.setTextColor(31, 41, 55); // Gray 800
+      doc.text(employee.personalIdentity?.fullName || 'Unknown Name', 20, 52);
 
-    finalY = (doc as any).lastAutoTable.finalY + 10;
+      doc.setFontSize(10);
+      doc.setTextColor(75, 85, 99); // Gray 600
+      doc.text(`ID: ${employee.employeeId || 'N/A'}`, 20, 60);
+      doc.text(`Role: ${employee.company?.designation || 'N/A'}`, 20, 66);
+      doc.text(`Dept: ${employee.company?.department || 'N/A'}`, 20, 72);
 
-    // Company Details
-    autoTable(doc, {
-      startY: finalY,
-      head: [['Company Details', '']],
-      body: [
-        ['Date of Joining', employee.company?.dateOfJoining || 'N/A'],
-        ['Office Location', employee.company?.officeLocation || 'N/A'],
-      ],
-      theme: 'grid',
-      headStyles: { fillColor: [13, 148, 136], textColor: 255 },
-      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 } },
-    });
+      let finalY = 85;
 
-    finalY = (doc as any).lastAutoTable.finalY + 10;
+      // 4. Personal Details Table
+      autoTable(doc, {
+        startY: finalY,
+        head: [['Personal Details', '']],
+        body: [
+          ['Full Name', employee.personalIdentity?.fullName || 'N/A'],
+          ['Date of Birth', employee.personalIdentity?.dateOfBirth ? new Date(employee.personalIdentity.dateOfBirth).toLocaleDateString() : 'N/A'],
+          ['Gender', employee.personalIdentity?.gender || 'N/A'],
+          ['Blood Group', employee.personalIdentity?.bloodGroup || 'N/A'],
+          ['Personal Email', employee.personalIdentity?.personalEmail || 'N/A'],
+          ['Mobile Number', employee.personalIdentity?.mobileNumber || 'N/A'],
+          ['Emergency Contact', `${employee.emergencyContact?.name || ''} (${employee.emergencyContact?.phone || ''})`],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [13, 148, 136], textColor: 255 },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50, textColor: 50 } },
+      });
 
-    // Banking Details (Sensitive)
-    autoTable(doc, {
-      startY: finalY,
-      head: [['Banking Details', '']],
-      body: [
-        ['Account Holder', employee.bankDetails?.accountHolderName || 'N/A'],
+      finalY = (doc as any).lastAutoTable.finalY + 10;
+
+      // 5. Company Details Table
+      autoTable(doc, {
+        startY: finalY,
+        head: [['Company Details', '']],
+        body: [
+          ['Employee ID', employee.employeeId || 'N/A'],
+          ['Date of Joining', employee.company?.dateOfJoining ? new Date(employee.company.dateOfJoining).toLocaleDateString() : 'N/A'],
+          ['Designation', employee.company?.designation || 'N/A'],
+          ['Department', employee.company?.department || 'N/A'],
+          ['Office Location', employee.company?.officeLocation || 'N/A'],
+          ['Reporting Manager', employee.company?.reportingManager || 'N/A'],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [13, 148, 136], textColor: 255 },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50, textColor: 50 } },
+      });
+
+      finalY = (doc as any).lastAutoTable.finalY + 10;
+
+      // 6. Address Details Table
+      autoTable(doc, {
+        startY: finalY,
+        head: [['Address Details', '']],
+        body: [
+          ['Current Address', employee.address?.currentAddress || 'N/A'],
+          ['Permanent Address', employee.address?.permanentAddress || 'N/A'],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [13, 148, 136], textColor: 255 },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50, textColor: 50 } },
+      });
+
+      finalY = (doc as any).lastAutoTable.finalY + 10;
+
+      // 7. Identity & Bank Details
+      const idRows = [
+        ['Aadhaar Number', employee.governmentTax?.aadhaarNumber || 'N/A'],
+        ['PAN Number', employee.governmentTax?.panNumber || 'N/A'],
+        ['Passport Number', employee.governmentTax?.passportNumber || 'N/A'],
+      ];
+      const bankRows = [
         ['Bank Name', employee.bankDetails?.bankName || 'N/A'],
+        ['Account Holder', employee.bankDetails?.accountHolderName || 'N/A'],
         ['Account Number', employee.bankDetails?.accountNumber || 'N/A'],
         ['IFSC Code', employee.bankDetails?.ifscCode || 'N/A'],
-      ],
-      theme: 'grid',
-      headStyles: { fillColor: [13, 148, 136], textColor: 255 },
-      columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50 } },
-    });
+      ];
 
-    doc.save(`${employee.personalIdentity?.fullName || 'employee'}-profile.pdf`);
-    toast.success('PDF downloaded successfully');
+      autoTable(doc, {
+        startY: finalY,
+        head: [['Identity & Bank Details', '']],
+        body: [...idRows, ...bankRows],
+        theme: 'grid',
+        headStyles: { fillColor: [13, 148, 136], textColor: 255 },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50, textColor: 50 } },
+      });
+
+      finalY = (doc as any).lastAutoTable.finalY + 10;
+
+      // 8. Education History (Multiple Entries)
+      doc.setFontSize(14);
+      doc.setTextColor(31, 41, 55);
+      doc.text('Education History', 14, finalY);
+      finalY += 5;
+
+      const eduRows = employee.education?.map((edu: any) => [
+        edu.qualification,
+        edu.institution,
+        edu.yearOfCompletion,
+      ]) || [['N/A', 'N/A', 'N/A']];
+
+      autoTable(doc, {
+        startY: finalY,
+        head: [['Qualification', 'Institution', 'Year']],
+        body: eduRows,
+        theme: 'striped',
+        headStyles: { fillColor: [100, 116, 139] },
+      });
+
+      finalY = (doc as any).lastAutoTable.finalY + 10;
+
+      // 9. Work Experience (Multiple Entries)
+      doc.setFontSize(14);
+      doc.setTextColor(31, 41, 55);
+      doc.text('Work Experience', 14, finalY);
+      finalY += 5;
+
+      let expRows = [['Fresher', '-', '-']];
+      if (!employee.workExperience?.isFresher && employee.workExperience?.entries) {
+        expRows = employee.workExperience.entries.map((exp: any) => [
+          exp.companyName || 'N/A',
+          exp.role || 'N/A',
+          `${new Date(exp.startDate).toLocaleDateString()} - ${new Date(exp.endDate).toLocaleDateString()}`
+        ]);
+      }
+
+      autoTable(doc, {
+        startY: finalY,
+        head: [['Company', 'Role', 'Duration']],
+        body: expRows,
+        theme: 'striped',
+        headStyles: { fillColor: [100, 116, 139] },
+      });
+
+      doc.save(`${employee.personalIdentity?.fullName || 'employee'}_profile.pdf`);
+      toast.success('PDF downloaded successfully');
+    } catch (error) {
+      console.error('PDF export error:', error);
+      toast.error('Failed to generate PDF');
+    }
   };
 
-  const handleSignOut = async () => {
-    await signOut();
-    navigate('/admin/login');
-  };
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-gray-600">Loading employee details...</div>
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-teal-600"></div>
       </div>
     );
   }
 
   if (!employee) {
     return (
-      <div className="min-h-screen flex items-center justify-center">
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
         <div className="text-center">
-          <p className="text-gray-600 mb-4">Employee not found</p>
+          <p className="text-gray-600 mb-4 text-lg">Employee not found</p>
           <button
             onClick={() => navigate('/admin/employees')}
-            className="text-teal-600 hover:text-teal-700"
+            className="text-teal-600 hover:text-teal-700 font-medium"
           >
             ← Back to Employee List
           </button>
@@ -262,71 +367,31 @@ export function EmployeeDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      {/* Sidebar */}
-      <div className="fixed inset-y-0 left-0 w-64 bg-white border-r border-gray-200">
-        <div className="flex flex-col h-full">
-          <div className="p-6 border-b border-gray-200">
-            <h2 className="text-xl text-gray-900">HR Portal</h2>
-            <p className="text-sm text-gray-600 mt-1">{user?.email}</p>
-          </div>
-
-          <nav className="flex-1 p-4 space-y-2">
-            <button
-              onClick={() => navigate('/admin/dashboard')}
-              className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <LayoutDashboard className="w-5 h-5" />
-              Dashboard
-            </button>
-            <button
-              onClick={() => navigate('/admin/employees')}
-              className="w-full flex items-center gap-3 px-4 py-3 text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-            >
-              <Users className="w-5 h-5" />
-              Employees
-            </button>
-          </nav>
-
-          <div className="p-4 border-t border-gray-200">
-            <button
-              onClick={handleSignOut}
-              className="w-full flex items-center gap-3 px-4 py-3 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-            >
-              <LogOut className="w-5 h-5" />
-              Logout
-            </button>
-          </div>
-        </div>
-      </div>
-
-      {/* Main Content */}
-      <div className="ml-64 p-8">
-        {/* Header */}
-        <div className="mb-8">
-          <div className="flex justify-between items-start">
-            <div>
+    <div className="min-h-screen bg-gray-50 pb-12">
+      {/* Header */}
+      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="flex justify-between items-center h-16">
+            <div className="flex items-center gap-4">
               <button
                 onClick={() => navigate('/admin/employees')}
-                className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition-colors"
+                className="p-2 -ml-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
               >
-                <ArrowLeft className="w-4 h-4" />
-                Back to Employee List
+                <ArrowLeft className="w-5 h-5" />
               </button>
-              <h1 className="text-3xl text-gray-900 mb-2">Employee Details</h1>
-              <p className="text-gray-600">Complete employee information and ID card preparation</p>
+              <h1 className="text-xl font-semibold text-gray-900">Employee Profile</h1>
             </div>
-            <div className="flex gap-3">
+            <div className="flex items-center gap-3">
               <button
                 onClick={() => setIsEditModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 <Edit className="w-4 h-4" />
-                Edit Details
+                Edit
               </button>
               <button
                 onClick={handleExportPDF}
-                className="flex items-center gap-2 px-4 py-2 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors"
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors shadow-sm"
               >
                 <FileDown className="w-4 h-4" />
                 Export PDF
@@ -334,235 +399,292 @@ export function EmployeeDetail() {
             </div>
           </div>
         </div>
+      </div>
 
-        {employee && (
-          <EditEmployeeModal
-            employee={employee}
-            isOpen={isEditModalOpen}
-            onClose={() => setIsEditModalOpen(false)}
-            onUpdate={fetchEmployee}
-          />
-        )}
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
 
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left Column - Profile & Actions */}
-          <div className="lg:col-span-1 space-y-6">
+          {/* Left Sidebar */}
+          <div className="space-y-6">
             {/* Profile Card */}
-            <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-              <div className="flex flex-col items-center">
-                <div className="w-32 h-32 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden mb-4">
-                  {employee.signedUrls?.profilePhoto ? (
-                    <img
-                      src={employee.signedUrls.profilePhoto}
-                      alt={employee.personalDetails?.fullName}
-                      className="w-full h-full object-cover"
-                    />
-                  ) : (
-                    <Users className="w-16 h-16 text-gray-600" />
-                  )}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+              <div className="h-32 bg-gradient-to-r from-teal-500 to-emerald-600"></div>
+              <div className="px-6 pb-6">
+                <div className="relative -mt-16 mb-4 flex justify-center">
+                  <div className="w-32 h-32 bg-white rounded-full p-1 shadow-md">
+                    <div className="w-full h-full bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
+                      {employee.signedUrls?.profilePhoto ? (
+                        <img
+                          src={employee.signedUrls.profilePhoto}
+                          alt={employee.personalIdentity?.fullName}
+                          className="w-full h-full object-cover"
+                        />
+                      ) : (
+                        <Users className="w-12 h-12 text-gray-400" />
+                      )}
+                    </div>
+                  </div>
                 </div>
-                <h2 className="text-xl text-gray-900 text-center mb-1">
-                  {employee.personalIdentity?.fullName}
-                </h2>
-                <p className="text-gray-600 text-center mb-1">{employee.company?.designation || 'Designation N/A'}</p>
-                <p className="text-sm text-gray-500 text-center">{employee.employeeId}</p>
+                <div className="text-center">
+                  <h2 className="text-xl font-bold text-gray-900">{employee.personalIdentity?.fullName}</h2>
+                  <p className="text-sm text-gray-500 mt-1">{employee.company?.designation || 'Designation N/A'}</p>
+                  <p className="text-xs text-gray-400 mt-1 font-mono">{employee.employeeId}</p>
 
-                <div className="mt-4 w-full">
-                  <span
-                    className={`inline-flex w-full justify-center px-3 py-2 rounded-lg text-sm ${employee.idCardPrepared
-                      ? 'bg-green-100 text-green-700'
-                      : 'bg-orange-100 text-orange-700'
-                      }`}
-                  >
-                    {employee.idCardPrepared ? (
-                      <><CheckCircle className="w-4 h-4 mr-2" /> ID Card Prepared</>
-                    ) : (
-                      <><IdCardIcon className="w-4 h-4 mr-2" /> ID Card Pending</>
-                    )}
-                  </span>
+                  <div className="mt-4 flex justify-center">
+                    <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-medium ${employee.idCardPrepared ? 'bg-green-100 text-green-800' : 'bg-orange-100 text-orange-800'
+                      }`}>
+                      {employee.idCardPrepared ? 'ID Active' : 'ID Pending'}
+                    </span>
+                  </div>
                 </div>
               </div>
+            </div>
 
-              {/* Action Buttons */}
-              <div className="mt-6 space-y-3">
+            {/* Quick Actions */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider">Quick Actions</h3>
+              <div className="space-y-3">
                 <button
                   onClick={handleDownloadPhoto}
                   disabled={!employee.signedUrls?.profilePhoto}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50"
                 >
-                  <Download className="w-4 h-4" />
-                  Download DP
+                  <span className="flex items-center gap-3">
+                    <Users className="w-4 h-4 text-gray-500" />
+                    Download Photo
+                  </span>
+                  <Download className="w-4 h-4 text-gray-400" />
                 </button>
-
                 <button
                   onClick={handleDownloadAllDocs}
-                  className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors"
+                  className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition-colors"
                 >
-                  <FileText className="w-4 h-4" />
-                  Download All Documents
+                  <span className="flex items-center gap-3">
+                    <FileText className="w-4 h-4 text-gray-500" />
+                    Download All Docs
+                  </span>
+                  <Download className="w-4 h-4 text-gray-400" />
                 </button>
-
                 {!employee.idCardPrepared && (
                   <button
                     onClick={handleMarkIdCardPrepared}
                     disabled={markingPrepared}
-                    className="w-full flex items-center justify-center gap-2 px-4 py-2.5 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                    className="w-full flex items-center justify-center gap-2 px-4 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 transition-colors disabled:opacity-50 mt-4"
                   >
-                    <CheckCircle className="w-4 h-4" />
-                    {markingPrepared ? 'Marking...' : 'Mark ID as Prepared'}
+                    {markingPrepared ? (
+                      <span className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></span>
+                    ) : (
+                      <CheckCircle className="w-4 h-4" />
+                    )}
+                    Mark ID as Prepared
                   </button>
                 )}
               </div>
             </div>
 
-            {/* Image Info */}
-            {employee.signedUrls?.profilePhoto && (
-              <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-4">
-                <p className="text-sm text-gray-600">
-                  <strong>Photo Resolution:</strong> Original Quality
-                </p>
-                <p className="text-xs text-gray-500 mt-1">
-                  Download for ID card printing workflow
-                </p>
-              </div>
-            )}
+            {/* Contact Info */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6">
+              <h3 className="text-sm font-semibold text-gray-900 mb-4 uppercase tracking-wider">Contact</h3>
+              <ul className="space-y-4">
+                <li className="flex items-start gap-3 text-sm">
+                  <Mail className="w-4 h-4 text-gray-400 mt-0.5" />
+                  <div>
+                    <p className="text-gray-500 text-xs">Email</p>
+                    <a href={`mailto:${employee.personalIdentity?.personalEmail}`} className="text-gray-900 hover:text-teal-600 truncate block">
+                      {employee.personalIdentity?.personalEmail || 'N/A'}
+                    </a>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3 text-sm">
+                  <Phone className="w-4 h-4 text-gray-400 mt-0.5" />
+                  <div>
+                    <p className="text-gray-500 text-xs">Phone</p>
+                    <p className="text-gray-900">{employee.personalIdentity?.mobileNumber || 'N/A'}</p>
+                  </div>
+                </li>
+                <li className="flex items-start gap-3 text-sm">
+                  <Users className="w-4 h-4 text-gray-400 mt-0.5" />
+                  <div>
+                    <p className="text-gray-500 text-xs">Emergency</p>
+                    <p className="text-gray-900">{employee.emergencyContact?.name || 'N/A'}</p>
+                    <p className="text-gray-500 text-xs">{employee.emergencyContact?.phone}</p>
+                  </div>
+                </li>
+              </ul>
+            </div>
           </div>
 
-          {/* Right Column - Details */}
+          {/* Main Content - Right Column */}
           <div className="lg:col-span-2 space-y-6">
+
             {/* Personal Details */}
-            <DetailCard
-              title="Personal Details"
-              icon={<Users className="w-5 h-5" />}
-              items={[
-                { label: 'Full Name', value: employee.personalIdentity?.fullName },
-                { label: 'Date of Birth', value: employee.personalIdentity?.dateOfBirth ? new Date(employee.personalIdentity.dateOfBirth).toLocaleDateString() : 'N/A' },
-                { label: 'Gender', value: employee.personalIdentity?.gender },
-                { label: 'Blood Group', value: employee.personalIdentity?.bloodGroup },
-                { label: 'Phone', value: employee.personalIdentity?.mobileNumber, icon: <Phone className="w-4 h-4 text-gray-400" /> },
-                { label: 'Email', value: employee.personalIdentity?.personalEmail, icon: <Mail className="w-4 h-4 text-gray-400" /> },
-                { label: 'Emergency Contact', value: employee.emergencyContact?.name },
-                { label: 'Emergency Phone', value: employee.emergencyContact?.phone },
-              ]}
-            />
+            <SectionCard title="Personal Information" icon={<User className="w-5 h-5" />}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <InfoItem label="Date of Birth" value={employee.personalIdentity?.dateOfBirth} />
+                <InfoItem label="Gender" value={employee.personalIdentity?.gender} />
+                <InfoItem label="Blood Group" value={employee.personalIdentity?.bloodGroup} />
+                <InfoItem label="Marital Status" value={employee.personalIdentity?.maritalStatus} />
+              </div>
+            </SectionCard>
 
-            {/* Address Details */}
-            <DetailCard
-              title="Address Details"
-              icon={<MapPin className="w-5 h-5" />}
-              items={[
-                { label: 'Current Address', value: employee.address?.currentAddress, fullWidth: true },
-                { label: 'Permanent Address', value: employee.address?.permanentAddress, fullWidth: true },
-              ]}
-            />
+            {/* Company & Job */}
+            <SectionCard title="Job Details" icon={<Briefcase className="w-5 h-5" />}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <InfoItem label="Department" value={employee.company?.department} />
+                <InfoItem label="Designation" value={employee.company?.designation} />
+                <InfoItem label="Date of Joining" value={employee.company?.dateOfJoining} icon={<Calendar className="w-3 h-3 text-gray-400" />} />
+                <InfoItem label="Office Location" value={employee.company?.officeLocation} icon={<MapPin className="w-3 h-3 text-gray-400" />} />
+                <InfoItem label="Reporting Manager" value={employee.company?.reportingManager} />
+              </div>
+            </SectionCard>
 
-            {/* ID & Legal Details */}
-            <DetailCard
-              title="ID & Legal Details"
-              icon={<IdCardIcon className="w-5 h-5" />}
-              items={[
-                { label: 'Aadhaar Number', value: employee.governmentTax?.aadhaarNumber },
-                { label: 'PAN Number', value: employee.governmentTax?.panNumber },
-                { label: 'Passport Number', value: employee.governmentTax?.passportNumber || 'Not Provided' },
-              ]}
-              documents={[
-                { label: 'Aadhaar Document', url: employee.signedUrls?.aadhaarDoc },
-                { label: 'PAN Document', url: employee.signedUrls?.panDoc },
-                { label: 'Passport Document', url: employee.signedUrls?.passportDoc },
-              ]}
-            />
+            {/* Address */}
+            <SectionCard title="Address" icon={<MapPin className="w-5 h-5" />}>
+              <div className="space-y-4">
+                <InfoItem label="Current Address" value={employee.address?.currentAddress} fullWidth />
+                <div className="border-t border-gray-100"></div>
+                <InfoItem label="Permanent Address" value={employee.address?.permanentAddress} fullWidth />
+              </div>
+            </SectionCard>
 
             {/* Education & Experience */}
-            <DetailCard
-              title="Education & Experience"
-              icon={<GraduationCap className="w-5 h-5" />}
-              items={[
-                // Education - Map all entries
-                ...(employee.education?.map((edu: any, index: number) => ({
-                  label: `Qualification ${index + 1}`,
-                  value: `${edu.qualification} - ${edu.institution} (${edu.yearOfCompletion})`,
-                  fullWidth: true
-                })) || []),
+            <SectionCard title="Education & Experience" icon={<GraduationCap className="w-5 h-5" />}>
+              <div className="space-y-8">
+                {/* Education */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <GraduationCap className="w-4 h-4 text-teal-600" /> Education
+                  </h4>
+                  <div className="bg-gray-50 rounded-lg p-4 space-y-4">
+                    {employee.education?.map((edu: any, index: number) => (
+                      <div key={index} className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 pb-4 border-b border-gray-200 last:border-0 last:pb-0">
+                        <div>
+                          <p className="font-medium text-gray-900">{edu.qualification}</p>
+                          <p className="text-sm text-gray-600">{edu.institution}</p>
+                        </div>
+                        <span className="text-xs font-medium text-gray-500 bg-white px-2 py-1 rounded border border-gray-200 whitespace-nowrap">
+                          {edu.yearOfCompletion}
+                        </span>
+                      </div>
+                    ))}
+                  </div>
+                </div>
 
-                { label: 'Experience Type', value: employee.workExperience?.isFresher ? 'Fresher' : 'Experienced' },
+                {/* Experience */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <Clock className="w-4 h-4 text-teal-600" /> Work Experience
+                  </h4>
+                  <div className="bg-gray-50 rounded-lg p-4">
+                    {employee.workExperience?.isFresher ? (
+                      <p className="text-sm text-gray-500 italic">Fresher / No prior experience</p>
+                    ) : (
+                      <div className="space-y-4">
+                        {employee.workExperience?.entries?.map((exp: any, index: number) => (
+                          <div key={index} className="flex flex-col sm:flex-row sm:justify-between sm:items-start gap-2 pb-4 border-b border-gray-200 last:border-0 last:pb-0">
+                            <div>
+                              <p className="font-medium text-gray-900">{exp.role}</p>
+                              <p className="text-sm text-gray-600">{exp.companyName}</p>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-xs text-gray-500 block">
+                                {new Date(exp.startDate).toLocaleDateString()} - {new Date(exp.endDate).toLocaleDateString()}
+                              </span>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </SectionCard>
 
-                // Experience - Map all entries
-                ...(!employee.workExperience?.isFresher && employee.workExperience?.entries ?
-                  employee.workExperience.entries.map((exp: any, index: number) => ({
-                    label: `Experience ${index + 1}`,
-                    value: `${exp.role} at ${exp.companyName} (${new Date(exp.startDate).toLocaleDateString()} - ${new Date(exp.endDate).toLocaleDateString()})`,
-                    fullWidth: true
-                  }))
-                  : []),
-              ]}
-            />
+            {/* Identity & Bank */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* Identity */}
+              <SectionCard title="Identity Documents" icon={<IdCardIcon className="w-5 h-5" />}>
+                <div className="space-y-3">
+                  <IDItem label="Aadhaar" value={employee.governmentTax?.aadhaarNumber} docUrl={employee.signedUrls?.aadhaarDoc} />
+                  <IDItem label="PAN Card" value={employee.governmentTax?.panNumber} docUrl={employee.signedUrls?.panDoc} />
+                  <IDItem label="Passport" value={employee.governmentTax?.passportNumber} docUrl={employee.signedUrls?.passportDoc} />
+                </div>
+              </SectionCard>
 
-            {/* Company Details */}
-            <DetailCard
-              title="Company Details"
-              icon={<Briefcase className="w-5 h-5" />}
-              items={[
-                { label: 'Employee ID', value: employee.employeeId },
-                { label: 'Department', value: employee.company?.department || 'N/A' },
-                { label: 'Designation', value: employee.company?.designation || 'N/A' },
-                { label: 'Date of Joining', value: employee.company?.dateOfJoining ? new Date(employee.company.dateOfJoining).toLocaleDateString() : 'N/A', icon: <Calendar className="w-4 h-4 text-gray-400" /> },
-                { label: 'Office Location', value: employee.company?.officeLocation || 'N/A', icon: <Building className="w-4 h-4 text-gray-400" /> },
-              ]}
-            />
+              {/* Bank */}
+              <SectionCard title="Bank Details" icon={<CreditCard className="w-5 h-5" />}>
+                <div className="space-y-3">
+                  <InfoItem label="Bank Name" value={employee.bankDetails?.bankName} />
+                  <InfoItem label="Account Number" value={employee.bankDetails?.accountNumber} />
+                  <InfoItem label="IFSC Code" value={employee.bankDetails?.ifscCode} />
+                  <InfoItem label="Holder Name" value={employee.bankDetails?.accountHolderName} />
+                </div>
+              </SectionCard>
+            </div>
+
           </div>
         </div>
       </div>
+
+      {employee && (
+        <EditEmployeeModal
+          employee={employee}
+          isOpen={isEditModalOpen}
+          onClose={() => setIsEditModalOpen(false)}
+          onUpdate={fetchEmployee}
+        />
+      )}
     </div>
   );
 }
 
-// Detail Card Component
-function DetailCard({ title, icon, items, documents }: {
-  title: string;
-  icon: React.ReactNode;
-  items: Array<{ label: string; value: any; icon?: React.ReactNode; fullWidth?: boolean }>;
-  documents?: Array<{ label: string; url?: string }>;
-}) {
+// Subcomponents for cleaner code
+function SectionCard({ title, icon, children }: { title: string; icon: React.ReactNode; children: React.ReactNode }) {
   return (
-    <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-6">
-      <div className="flex items-center gap-2 mb-6">
-        <div className="text-teal-600">{icon}</div>
-        <h3 className="text-lg text-gray-900">{title}</h3>
-      </div>
-
-      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-        {items.map((item, index) => (
-          <div key={index} className={item.fullWidth ? 'md:col-span-2' : ''}>
-            <p className="text-sm text-gray-600 mb-1">{item.label}</p>
-            <div className="flex items-center gap-2">
-              {item.icon}
-              <p className="text-gray-900">{item.value || 'N/A'}</p>
-            </div>
-          </div>
-        ))}
-      </div>
-
-      {documents && documents.length > 0 && (
-        <div className="mt-6 pt-6 border-t border-gray-200">
-          <p className="text-sm text-gray-700 mb-3">Uploaded Documents:</p>
-          <div className="space-y-2">
-            {documents.map((doc, index) => (
-              doc.url && (
-                <a
-                  key={index}
-                  href={doc.url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                >
-                  <span className="text-sm text-gray-700">{doc.label}</span>
-                  <Download className="w-4 h-4 text-gray-600" />
-                </a>
-              )
-            ))}
-          </div>
+    <div className="bg-white rounded-xl shadow-sm border border-gray-200 overflow-hidden">
+      <div className="px-6 py-4 border-b border-gray-100 bg-gray-50/50 flex items-center gap-3">
+        <div className="text-teal-600 bg-teal-50 p-1.5 rounded-lg">
+          {icon}
         </div>
+        <h2 className="text-base font-semibold text-gray-900">{title}</h2>
+      </div>
+      <div className="p-6">
+        {children}
+      </div>
+    </div>
+  )
+}
+
+function InfoItem({ label, value, icon, fullWidth = false }: { label: string; value: string; icon?: React.ReactNode; fullWidth?: boolean }) {
+  return (
+    <div className={fullWidth ? 'w-full' : ''}>
+      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 opacity-80">{label}</p>
+      <div className="flex items-center gap-2 text-sm text-gray-900 font-medium">
+        {icon}
+        <span>{value || 'N/A'}</span>
+      </div>
+    </div>
+  )
+}
+
+function IDItem({ label, value, docUrl }: { label: string; value: string; docUrl?: string }) {
+  return (
+    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg group hover:bg-gray-100 transition-colors">
+      <div>
+        <p className="text-xs text-gray-500">{label}</p>
+        <p className="text-sm font-medium text-gray-900">{value || 'N/A'}</p>
+      </div>
+      {docUrl && (
+        <a
+          href={docUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-teal-600 p-2 hover:bg-white rounded-lg transition-colors opacity-0 group-hover:opacity-100"
+          title="View Document"
+        >
+          <FileText className="w-4 h-4" />
+        </a>
       )}
     </div>
-  );
+  )
 }
