@@ -35,6 +35,7 @@ export function OnboardingForm() {
     fullName: '',
     dateOfBirth: '',
     gender: '',
+    bloodGroup: '',
     nationality: 'Indian',
     personalEmail: '',
     mobileNumber: '',
@@ -59,7 +60,6 @@ export function OnboardingForm() {
     bankName: '',
     accountNumber: '',
     ifscCode: '',
-    cancelledCheque: null as File | null,
     
     // Section 5: Education (dynamic)
     education: [
@@ -234,7 +234,7 @@ export function OnboardingForm() {
     switch (step) {
       case 1: // Personal Identity
         if (!formData.fullName || !formData.dateOfBirth || !formData.gender ||
-            !formData.nationality || !formData.personalEmail || !formData.mobileNumber) {
+            !formData.bloodGroup || !formData.nationality || !formData.personalEmail || !formData.mobileNumber) {
           toast.error('Please fill all required fields');
           return false;
         }
@@ -258,18 +258,18 @@ export function OnboardingForm() {
         return true;
       
       case 3: // Government & Tax
-        if (!formData.aadhaarNumber || !formData.panNumber) {
-          toast.error('Aadhaar and PAN are mandatory');
+        if (!formData.aadhaarNumber) {
+          toast.error('Aadhaar is mandatory');
           return false;
         }
         if (!validateAadhaar(formData.aadhaarNumber)) return false;
-        if (!validatePAN(formData.panNumber)) return false;
+        if (formData.panNumber && !validatePAN(formData.panNumber)) return false;
         return true;
       
       case 4: // Bank Details
         if (!formData.accountHolderName || !formData.bankName ||
-            !formData.accountNumber || !formData.ifscCode || !formData.cancelledCheque) {
-          toast.error('Please fill all bank details and upload cancelled cheque');
+            !formData.accountNumber || !formData.ifscCode) {
+          toast.error('Please fill all bank details');
           return false;
         }
         if (!validateIFSC(formData.ifscCode)) return false;
@@ -320,10 +320,6 @@ export function OnboardingForm() {
           toast.error('Please accept all declarations');
           return false;
         }
-        if (!formData.digitalSignature || formData.digitalSignature.trim() !== formData.fullName.trim()) {
-          toast.error('Digital signature must match your full legal name exactly');
-          return false;
-        }
         return true;
       
       default:
@@ -354,6 +350,7 @@ export function OnboardingForm() {
         fullName: formData.fullName,
         dateOfBirth: formData.dateOfBirth,
         gender: formData.gender,
+        bloodGroup: formData.bloodGroup,
         nationality: formData.nationality,
         personalEmail: formData.personalEmail,
         mobileNumber: formData.mobileNumber,
@@ -394,7 +391,6 @@ export function OnboardingForm() {
       
       // Add files
       if (formData.photograph) submitFormData.append('photograph', formData.photograph);
-      if (formData.cancelledCheque) submitFormData.append('cancelledCheque', formData.cancelledCheque);
       
       // Add education certificates
       formData.education.forEach((edu, index) => {
@@ -621,6 +617,25 @@ function Step1PersonalIdentity({ formData, onChange }: any) {
         </div>
 
         <div>
+          <label className="block text-sm text-gray-700 mb-2">Blood Group *</label>
+          <select
+            value={formData.bloodGroup}
+            onChange={(e) => onChange('bloodGroup', e.target.value)}
+            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
+          >
+            <option value="">Select Blood Group</option>
+            <option value="A+">A+</option>
+            <option value="A-">A-</option>
+            <option value="B+">B+</option>
+            <option value="B-">B-</option>
+            <option value="O+">O+</option>
+            <option value="O-">O-</option>
+            <option value="AB+">AB+</option>
+            <option value="AB-">AB-</option>
+          </select>
+        </div>
+
+        <div>
           <label className="block text-sm text-gray-700 mb-2">Nationality *</label>
           <input
             type="text"
@@ -775,7 +790,7 @@ function Step3GovernmentTax({ formData, onChange }: any) {
         </div>
 
         <div>
-          <label className="block text-sm text-gray-700 mb-2">PAN Number *</label>
+          <label className="block text-sm text-gray-700 mb-2">PAN Number (Optional)</label>
           <input
             type="text"
             value={formData.panNumber}
@@ -874,19 +889,6 @@ function Step4BankDetails({ formData, onChange, onFileChange }: any) {
               placeholder="SBIN0001234"
             />
           </div>
-        </div>
-
-        <div>
-          <label className="block text-sm text-gray-700 mb-2">Upload Cancelled Cheque or Bank Passbook Front Page *</label>
-          <input
-            type="file"
-            accept=".pdf,.jpg,.jpeg,.png"
-            onChange={(e) => onFileChange('cancelledCheque', e.target.files?.[0] || null)}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
-          />
-          {formData.cancelledCheque && (
-            <p className="text-sm text-gray-600 mt-2">✓ {formData.cancelledCheque.name}</p>
-          )}
         </div>
       </div>
     </div>
@@ -1251,12 +1253,6 @@ function Step8Photograph({ photograph, preview, onFileChange }: any) {
 
 // Step 9: Declarations and Consent
 function Step9Declarations({ formData, onChange }: any) {
-  const currentDate = new Date().toLocaleDateString('en-IN', {
-    day: '2-digit',
-    month: 'long',
-    year: 'numeric',
-  });
-
   return (
     <div className="space-y-6">
       <div>
@@ -1314,38 +1310,10 @@ function Step9Declarations({ formData, onChange }: any) {
         </label>
       </div>
 
-      <div className="pt-6 border-t border-gray-200">
-        <h3 className="text-gray-900 mb-4">Digital Signature</h3>
-        
-        <div>
-          <label className="block text-sm text-gray-700 mb-2">
-            Type Your Full Legal Name (Must Match Above) *
-          </label>
-          <input
-            type="text"
-            value={formData.digitalSignature}
-            onChange={(e) => onChange('digitalSignature', e.target.value)}
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none font-serif text-lg"
-            placeholder="Full legal name as signature"
-          />
-          <p className="text-xs text-gray-500 mt-1">This serves as your digital signature</p>
-        </div>
-
-        <div className="mt-4">
-          <label className="block text-sm text-gray-700 mb-2">Date</label>
-          <input
-            type="text"
-            value={currentDate}
-            disabled
-            className="w-full px-4 py-2.5 border border-gray-300 rounded-lg bg-gray-50 text-gray-600"
-          />
-        </div>
-      </div>
-
-      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+      <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 mt-6">
         <p className="text-sm text-gray-700">
-          ⚠️ <strong>Important:</strong> By submitting this form, you are digitally signing this document.
-          Ensure all information is correct before submission.
+          ⚠️ <strong>Important:</strong> By submitting this form, you confirm that all information provided is accurate.
+          Ensure all details are correct before submission.
         </p>
       </div>
     </div>

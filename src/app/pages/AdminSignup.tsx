@@ -1,12 +1,12 @@
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
-import { LogIn, Lock, Mail } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { UserPlus, Lock, Mail, User } from 'lucide-react';
+import { projectId, publicAnonKey } from '../../../utils/supabase/info';
 
-export function AdminLogin() {
+export function AdminSignup() {
   const navigate = useNavigate();
-  const { signIn } = useAuth();
+  const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
@@ -14,25 +14,47 @@ export function AdminLogin() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!email || !password) {
+    if (!name || !email || !password) {
       toast.error('Please fill in all fields');
+      return;
+    }
+
+    if (password.length < 6) {
+      toast.error('Password must be at least 6 characters');
       return;
     }
 
     setIsLoading(true);
 
     try {
-      const result = await signIn(email, password);
+      const response = await fetch(
+        `https://${projectId}.supabase.co/functions/v1/make-server-0e23869b/admin/signup`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${publicAnonKey}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({ name, email, password }),
+        }
+      );
 
-      if ('error' in result) {
-        toast.error(result.error);
-      } else {
-        toast.success('Login successful!');
-        navigate('/admin/dashboard');
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Signup failed');
       }
-    } catch (error) {
-      console.error('Login error:', error);
-      toast.error('Login failed. Please try again.');
+
+      toast.success('Admin account created successfully!');
+      toast.success('You can now login with your credentials');
+      
+      setTimeout(() => {
+        navigate('/admin/login');
+      }, 2000);
+
+    } catch (error: any) {
+      console.error('Signup error:', error);
+      toast.error(error.message || 'Signup failed. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -44,15 +66,30 @@ export function AdminLogin() {
         {/* Logo/Header */}
         <div className="text-center mb-8">
           <div className="inline-flex items-center justify-center w-16 h-16 bg-teal-600 rounded-full mb-4">
-            <Lock className="w-8 h-8 text-white" />
+            <UserPlus className="w-8 h-8 text-white" />
           </div>
-          <h1 className="text-3xl text-gray-900 mb-2">Admin Portal</h1>
-          <p className="text-gray-600">Sign in to manage employee onboarding</p>
+          <h1 className="text-3xl text-gray-900 mb-2">Create Admin Account</h1>
+          <p className="text-gray-600">Set up your HR admin credentials</p>
         </div>
 
-        {/* Login Card */}
+        {/* Signup Card */}
         <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-8">
           <form onSubmit={handleSubmit} className="space-y-6">
+            <div>
+              <label className="block text-sm text-gray-700 mb-2">Full Name</label>
+              <div className="relative">
+                <User className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-gray-400" />
+                <input
+                  type="text"
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition"
+                  placeholder="Your full name"
+                  autoComplete="name"
+                />
+              </div>
+            </div>
+
             <div>
               <label className="block text-sm text-gray-700 mb-2">Email Address</label>
               <div className="relative">
@@ -78,9 +115,10 @@ export function AdminLogin() {
                   onChange={(e) => setPassword(e.target.value)}
                   className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none transition"
                   placeholder="••••••••"
-                  autoComplete="current-password"
+                  autoComplete="new-password"
                 />
               </div>
+              <p className="text-xs text-gray-500 mt-1">Minimum 6 characters</p>
             </div>
 
             <button
@@ -89,11 +127,11 @@ export function AdminLogin() {
               className="w-full flex items-center justify-center gap-2 py-3 bg-teal-600 text-white rounded-lg hover:bg-teal-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
             >
               {isLoading ? (
-                'Signing in...'
+                'Creating account...'
               ) : (
                 <>
-                  <LogIn className="w-5 h-5" />
-                  Sign In
+                  <UserPlus className="w-5 h-5" />
+                  Create Admin Account
                 </>
               )}
             </button>
@@ -101,7 +139,13 @@ export function AdminLogin() {
 
           <div className="mt-6 pt-6 border-t border-gray-200">
             <p className="text-sm text-gray-600 text-center">
-              Secure admin access for HR personnel only
+              Already have an account?{' '}
+              <button
+                onClick={() => navigate('/admin/login')}
+                className="text-teal-600 hover:text-teal-700 transition-colors"
+              >
+                Sign in here
+              </button>
             </p>
           </div>
         </div>

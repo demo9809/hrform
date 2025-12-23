@@ -114,6 +114,7 @@ app.post("/make-server-0e23869b/employees", async (c) => {
         fullName: formData.get('fullName'),
         dateOfBirth: formData.get('dateOfBirth'),
         gender: formData.get('gender'),
+        bloodGroup: formData.get('bloodGroup'),
         nationality: formData.get('nationality'),
         personalEmail: formData.get('personalEmail'),
         mobileNumber: formData.get('mobileNumber'),
@@ -161,7 +162,6 @@ app.post("/make-server-0e23869b/employees", async (c) => {
     
     // Handle file uploads
     const photograph = formData.get('photograph') as File | null;
-    const cancelledCheque = formData.get('cancelledCheque') as File | null;
     
     const fileUrls: any = {};
     
@@ -179,23 +179,6 @@ app.post("/make-server-0e23869b/employees", async (c) => {
       
       if (!error) {
         fileUrls.photograph = photoPath;
-      }
-    }
-    
-    // Upload cancelled cheque
-    if (cancelledCheque) {
-      const docPath = `${employeeId}/cancelled-cheque-${Date.now()}.${cancelledCheque.name.split('.').pop()}`;
-      const docBuffer = await cancelledCheque.arrayBuffer();
-      
-      const { data, error } = await supabase.storage
-        .from(BUCKET_NAME)
-        .upload(docPath, docBuffer, {
-          contentType: cancelledCheque.type,
-          upsert: false
-        });
-      
-      if (!error) {
-        fileUrls.cancelledCheque = docPath;
       }
     }
     
@@ -327,13 +310,6 @@ app.get("/make-server-0e23869b/employees", async (c) => {
             signedUrls.photograph = data?.signedUrl || null;
           }
           
-          if (employee.files.cancelledCheque) {
-            const { data } = await supabase.storage
-              .from(BUCKET_NAME)
-              .createSignedUrl(employee.files.cancelledCheque, 3600);
-            signedUrls.cancelledCheque = data?.signedUrl || null;
-          }
-          
           if (employee.files.educationCertificates) {
             const certUrls: string[] = [];
             for (const certPath of employee.files.educationCertificates) {
@@ -347,36 +323,6 @@ app.get("/make-server-0e23869b/employees", async (c) => {
               }
             }
             signedUrls.educationCertificates = certUrls;
-          }
-          
-          if (employee.files.experienceLetters) {
-            const expUrls: string[] = [];
-            for (const expPath of employee.files.experienceLetters) {
-              if (expPath) {
-                const { data } = await supabase.storage
-                  .from(BUCKET_NAME)
-                  .createSignedUrl(expPath, 3600);
-                expUrls.push(data?.signedUrl || '');
-              } else {
-                expUrls.push('');
-              }
-            }
-            signedUrls.experienceLetters = expUrls;
-          }
-          
-          if (employee.files.relievingLetters) {
-            const relUrls: string[] = [];
-            for (const relPath of employee.files.relievingLetters) {
-              if (relPath) {
-                const { data } = await supabase.storage
-                  .from(BUCKET_NAME)
-                  .createSignedUrl(relPath, 3600);
-                relUrls.push(data?.signedUrl || '');
-              } else {
-                relUrls.push('');
-              }
-            }
-            signedUrls.relievingLetters = relUrls;
           }
           
           employee.signedUrls = signedUrls;
@@ -422,13 +368,6 @@ app.get("/make-server-0e23869b/employees/:id", async (c) => {
         signedUrls.photograph = data?.signedUrl || null;
       }
       
-      if (employee.files.cancelledCheque) {
-        const { data } = await supabase.storage
-          .from(BUCKET_NAME)
-          .createSignedUrl(employee.files.cancelledCheque, 3600);
-        signedUrls.cancelledCheque = data?.signedUrl || null;
-      }
-      
       if (employee.files.educationCertificates) {
         const certUrls: string[] = [];
         for (const certPath of employee.files.educationCertificates) {
@@ -442,36 +381,6 @@ app.get("/make-server-0e23869b/employees/:id", async (c) => {
           }
         }
         signedUrls.educationCertificates = certUrls;
-      }
-      
-      if (employee.files.experienceLetters) {
-        const expUrls: string[] = [];
-        for (const expPath of employee.files.experienceLetters) {
-          if (expPath) {
-            const { data } = await supabase.storage
-              .from(BUCKET_NAME)
-              .createSignedUrl(expPath, 3600);
-            expUrls.push(data?.signedUrl || '');
-          } else {
-            expUrls.push('');
-          }
-        }
-        signedUrls.experienceLetters = expUrls;
-      }
-      
-      if (employee.files.relievingLetters) {
-        const relUrls: string[] = [];
-        for (const relPath of employee.files.relievingLetters) {
-          if (relPath) {
-            const { data } = await supabase.storage
-              .from(BUCKET_NAME)
-              .createSignedUrl(relPath, 3600);
-            relUrls.push(data?.signedUrl || '');
-          } else {
-            relUrls.push('');
-          }
-        }
-        signedUrls.relievingLetters = relUrls;
       }
       
       employee.signedUrls = signedUrls;
