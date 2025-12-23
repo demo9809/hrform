@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { ChevronLeft, ChevronRight, Check, Upload, User, Plus, X } from 'lucide-react';
-import { projectId, publicAnonKey } from '../../../utils/supabase/info';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../../utils/supabase/client';
 
 const TOTAL_STEPS = 9;
 
@@ -28,7 +28,7 @@ interface WorkExperienceEntry {
 export function OnboardingForm() {
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
-  
+
   // Form data
   const [formData, setFormData] = useState({
     // Section 1: Personal Identity
@@ -39,7 +39,7 @@ export function OnboardingForm() {
     nationality: 'Indian',
     personalEmail: '',
     mobileNumber: '',
-    
+
     // Section 2: Address
     currentAddress: '',
     city: '',
@@ -48,19 +48,19 @@ export function OnboardingForm() {
     pincode: '',
     permanentAddress: '',
     sameAsCurrent: false,
-    
+
     // Section 3: Government & Tax
     aadhaarNumber: '',
     panNumber: '',
     passportNumber: '',
     passportExpiry: '',
-    
+
     // Section 4: Bank Details
     accountHolderName: '',
     bankName: '',
     accountNumber: '',
     ifscCode: '',
-    
+
     // Section 5: Education (dynamic)
     education: [
       {
@@ -72,19 +72,19 @@ export function OnboardingForm() {
         certificate: null,
       }
     ] as EducationEntry[],
-    
+
     // Section 6: Work Experience
     isFresher: true,
     workExperience: [] as WorkExperienceEntry[],
-    
+
     // Section 7: Emergency Contact
     emergencyContactName: '',
     emergencyRelationship: '',
     emergencyPhone: '',
-    
+
     // Section 8: Photo
     photograph: null as File | null,
-    
+
     // Section 9: Declarations
     declarationTruthful: false,
     consentBackgroundCheck: false,
@@ -92,18 +92,18 @@ export function OnboardingForm() {
     acceptNDA: false,
     digitalSignature: '',
   });
-  
+
   const [photographPreview, setPhotographPreview] = useState<string | null>(null);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => {
       const newData = { ...prev, [field]: value };
-      
+
       // Handle "Same as Current Address" checkbox
       if (field === 'sameAsCurrent' && value) {
         newData.permanentAddress = `${prev.currentAddress}, ${prev.city}, ${prev.district}, ${prev.state} - ${prev.pincode}`;
       }
-      
+
       return newData;
     });
   };
@@ -115,12 +115,12 @@ export function OnboardingForm() {
         toast.error('Only JPG or PNG files are allowed for photographs');
         return;
       }
-      
+
       if (file.size > 5 * 1024 * 1024) {
         toast.error('Photo size must be less than 5MB');
         return;
       }
-      
+
       setFormData(prev => ({ ...prev, [field]: file }));
       const reader = new FileReader();
       reader.onloadend = () => {
@@ -234,20 +234,20 @@ export function OnboardingForm() {
     switch (step) {
       case 1: // Personal Identity
         if (!formData.fullName || !formData.dateOfBirth || !formData.gender ||
-            !formData.bloodGroup || !formData.nationality || !formData.personalEmail || !formData.mobileNumber) {
+          !formData.bloodGroup || !formData.nationality || !formData.personalEmail || !formData.mobileNumber) {
           toast.error('Please fill all required fields');
           return false;
         }
-        if (formData.personalEmail.toLowerCase().includes('@company.') || 
-            formData.personalEmail.toLowerCase().includes('@work.')) {
+        if (formData.personalEmail.toLowerCase().includes('@company.') ||
+          formData.personalEmail.toLowerCase().includes('@work.')) {
           toast.error('Please use personal email, not company email');
           return false;
         }
         return true;
-      
+
       case 2: // Address
         if (!formData.currentAddress || !formData.city || !formData.district ||
-            !formData.state || !formData.pincode) {
+          !formData.state || !formData.pincode) {
           toast.error('Please fill all address fields');
           return false;
         }
@@ -256,7 +256,7 @@ export function OnboardingForm() {
           return false;
         }
         return true;
-      
+
       case 3: // Government & Tax
         if (!formData.aadhaarNumber) {
           toast.error('Aadhaar is mandatory');
@@ -265,63 +265,63 @@ export function OnboardingForm() {
         if (!validateAadhaar(formData.aadhaarNumber)) return false;
         if (formData.panNumber && !validatePAN(formData.panNumber)) return false;
         return true;
-      
+
       case 4: // Bank Details
         if (!formData.accountHolderName || !formData.bankName ||
-            !formData.accountNumber || !formData.ifscCode) {
+          !formData.accountNumber || !formData.ifscCode) {
           toast.error('Please fill all bank details');
           return false;
         }
         if (!validateIFSC(formData.ifscCode)) return false;
         return true;
-      
+
       case 5: // Education
         for (const edu of formData.education) {
-          if (!edu.qualification || !edu.courseSpecialization || 
-              !edu.institution || !edu.yearOfCompletion) {
+          if (!edu.qualification || !edu.courseSpecialization ||
+            !edu.institution || !edu.yearOfCompletion) {
             toast.error('Please complete all education entries or remove incomplete ones');
             return false;
           }
         }
         return true;
-      
+
       case 6: // Work Experience
         if (!formData.isFresher && formData.workExperience.length === 0) {
           toast.error('Please add at least one work experience entry');
           return false;
         }
         for (const exp of formData.workExperience) {
-          if (!exp.organization || !exp.designation || !exp.startDate || 
-              !exp.endDate || !exp.reasonForLeaving) {
+          if (!exp.organization || !exp.designation || !exp.startDate ||
+            !exp.endDate || !exp.reasonForLeaving) {
             toast.error('Please complete all work experience entries');
             return false;
           }
         }
         return true;
-      
+
       case 7: // Emergency Contact
         if (!formData.emergencyContactName || !formData.emergencyRelationship ||
-            !formData.emergencyPhone) {
+          !formData.emergencyPhone) {
           toast.error('Please fill all emergency contact details');
           return false;
         }
         return true;
-      
+
       case 8: // Photo
         if (!formData.photograph) {
           toast.error('Please upload your photograph');
           return false;
         }
         return true;
-      
+
       case 9: // Declarations
         if (!formData.declarationTruthful || !formData.consentBackgroundCheck ||
-            !formData.agreePolicies || !formData.acceptNDA) {
+          !formData.agreePolicies || !formData.acceptNDA) {
           toast.error('Please accept all declarations');
           return false;
         }
         return true;
-      
+
       default:
         return true;
     }
@@ -344,7 +344,7 @@ export function OnboardingForm() {
 
     try {
       const submitFormData = new FormData();
-      
+
       // Add all simple fields
       const simpleFields = {
         fullName: formData.fullName,
@@ -374,31 +374,31 @@ export function OnboardingForm() {
         emergencyPhone: formData.emergencyPhone,
         digitalSignature: formData.digitalSignature,
       };
-      
+
       Object.entries(simpleFields).forEach(([key, value]) => {
         submitFormData.append(key, String(value));
       });
-      
+
       // Add education as JSON
       submitFormData.append('education', JSON.stringify(
         formData.education.map(({ id, certificate, ...rest }) => rest)
       ));
-      
+
       // Add work experience as JSON
       submitFormData.append('workExperience', JSON.stringify(
         formData.workExperience.map(({ id, experienceLetter, relievingLetter, ...rest }) => rest)
       ));
-      
+
       // Add files
       if (formData.photograph) submitFormData.append('photograph', formData.photograph);
-      
+
       // Add education certificates
       formData.education.forEach((edu, index) => {
         if (edu.certificate) {
           submitFormData.append(`educationCertificate_${index}`, edu.certificate);
         }
       });
-      
+
       // Add experience letters
       formData.workExperience.forEach((exp, index) => {
         if (exp.experienceLetter) {
@@ -410,11 +410,11 @@ export function OnboardingForm() {
       });
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-0e23869b/employees`,
+        `${SUPABASE_URL}/functions/v1/make-server-0e23869b/employees`,
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
           },
           body: submitFormData,
         }
@@ -428,7 +428,7 @@ export function OnboardingForm() {
 
       toast.success('Onboarding completed successfully!');
       toast.success(`Your Employee ID: ${data.employeeId}`, { duration: 5000 });
-      
+
       // Reset form after 3 seconds
       setTimeout(() => {
         window.location.reload();
@@ -457,21 +457,19 @@ export function OnboardingForm() {
             {Array.from({ length: TOTAL_STEPS }, (_, i) => i + 1).map(step => (
               <div key={step} className="flex items-center flex-1">
                 <div
-                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs border-2 transition-colors ${
-                    step < currentStep
-                      ? 'bg-teal-600 border-teal-600 text-white'
-                      : step === currentStep
+                  className={`w-8 h-8 rounded-full flex items-center justify-center text-xs border-2 transition-colors ${step < currentStep
+                    ? 'bg-teal-600 border-teal-600 text-white'
+                    : step === currentStep
                       ? 'bg-white border-teal-600 text-teal-600'
                       : 'bg-white border-gray-300 text-gray-400'
-                  }`}
+                    }`}
                 >
                   {step < currentStep ? <Check className="w-4 h-4" /> : step}
                 </div>
                 {step < TOTAL_STEPS && (
                   <div
-                    className={`flex-1 h-1 mx-1 transition-colors ${
-                      step < currentStep ? 'bg-teal-600' : 'bg-gray-300'
-                    }`}
+                    className={`flex-1 h-1 mx-1 transition-colors ${step < currentStep ? 'bg-teal-600' : 'bg-gray-300'
+                      }`}
                   />
                 )}
               </div>
@@ -804,7 +802,7 @@ function Step3GovernmentTax({ formData, onChange }: any) {
 
         <div className="pt-4 border-t border-gray-200">
           <p className="text-sm text-gray-600 mb-4">Optional passport details:</p>
-          
+
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
             <div>
               <label className="block text-sm text-gray-700 mb-2">Passport Number (Optional)</label>

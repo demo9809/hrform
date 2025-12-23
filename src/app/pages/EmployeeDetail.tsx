@@ -19,7 +19,7 @@ import {
   Building,
 } from 'lucide-react';
 import { useAuth, supabase } from '../contexts/AuthContext';
-import { projectId, publicAnonKey } from '../../../utils/supabase/info';
+import { SUPABASE_URL } from '../../utils/supabase/client';
 
 export function EmployeeDetail() {
   const { id } = useParams();
@@ -47,7 +47,7 @@ export function EmployeeDetail() {
       }
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-0e23869b/employees/${id}`,
+        `${SUPABASE_URL}/functions/v1/make-server-0e23869b/employees/${id}`,
         {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -83,7 +83,7 @@ export function EmployeeDetail() {
       }
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-0e23869b/employees/${id}/id-card-prepared`,
+        `${SUPABASE_URL}/functions/v1/make-server-0e23869b/employees/${id}/id-card-prepared`,
         {
           method: 'POST',
           headers: {
@@ -235,14 +235,13 @@ export function EmployeeDetail() {
                 </h2>
                 <p className="text-gray-600 text-center mb-1">{employee.company?.designation}</p>
                 <p className="text-sm text-gray-500 text-center">{employee.company?.employeeId}</p>
-                
+
                 <div className="mt-4 w-full">
                   <span
-                    className={`inline-flex w-full justify-center px-3 py-2 rounded-lg text-sm ${
-                      employee.idCardPrepared
-                        ? 'bg-green-100 text-green-700'
-                        : 'bg-orange-100 text-orange-700'
-                    }`}
+                    className={`inline-flex w-full justify-center px-3 py-2 rounded-lg text-sm ${employee.idCardPrepared
+                      ? 'bg-green-100 text-green-700'
+                      : 'bg-orange-100 text-orange-700'
+                      }`}
                   >
                     {employee.idCardPrepared ? (
                       <><CheckCircle className="w-4 h-4 mr-2" /> ID Card Prepared</>

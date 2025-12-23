@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { Users, UserPlus, IdCard, LayoutDashboard, LogOut, FileText } from 'lucide-react';
 import { useAuth, supabase } from '../contexts/AuthContext';
-import { projectId, publicAnonKey } from '../../../utils/supabase/info';
+import { SUPABASE_URL } from '../../utils/supabase/client';
 
 interface DashboardStats {
   totalEmployees: number;
@@ -34,7 +34,7 @@ export function AdminDashboard() {
       }
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-0e23869b/dashboard/stats`,
+        `${SUPABASE_URL}/functions/v1/make-server-0e23869b/dashboard/stats`,
         {
           headers: {
             'Authorization': `Bearer ${accessToken}`,

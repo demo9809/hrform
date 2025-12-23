@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { UserPlus, Lock, Mail, User } from 'lucide-react';
-import { projectId, publicAnonKey } from '../../../utils/supabase/info';
+import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../../utils/supabase/client';
 
 export function AdminSignup() {
   const navigate = useNavigate();
@@ -28,11 +28,11 @@ export function AdminSignup() {
 
     try {
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-0e23869b/admin/signup`,
+        `${SUPABASE_URL}/functions/v1/make-server-0e23869b/admin/signup`,
         {
           method: 'POST',
           headers: {
-            'Authorization': `Bearer ${publicAnonKey}`,
+            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
             'Content-Type': 'application/json',
           },
           body: JSON.stringify({ name, email, password }),
@@ -47,7 +47,7 @@ export function AdminSignup() {
 
       toast.success('Admin account created successfully!');
       toast.success('You can now login with your credentials');
-      
+
       setTimeout(() => {
         navigate('/admin/login');
       }, 2000);

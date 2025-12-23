@@ -12,7 +12,7 @@ import {
   IdCard as IdCardIcon,
 } from 'lucide-react';
 import { useAuth, supabase } from '../contexts/AuthContext';
-import { projectId, publicAnonKey } from '../../../utils/supabase/info';
+import { SUPABASE_URL } from '../../utils/supabase/client';
 
 export function EmployeeList() {
   const navigate = useNavigate();
@@ -43,7 +43,7 @@ export function EmployeeList() {
       }
 
       const response = await fetch(
-        `https://${projectId}.supabase.co/functions/v1/make-server-0e23869b/employees`,
+        `${SUPABASE_URL}/functions/v1/make-server-0e23869b/employees`,
         {
           headers: {
             'Authorization': `Bearer ${accessToken}`,
@@ -233,11 +233,10 @@ export function EmployeeList() {
                       </td>
                       <td className="px-6 py-4">
                         <span
-                          className={`inline-flex px-2.5 py-1 rounded-full text-xs ${
-                            employee.idCardPrepared
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-orange-100 text-orange-700'
-                          }`}
+                          className={`inline-flex px-2.5 py-1 rounded-full text-xs ${employee.idCardPrepared
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-orange-100 text-orange-700'
+                            }`}
                         >
                           {employee.idCardPrepared ? 'Active' : 'Pending'}
                         </span>
@@ -314,11 +313,10 @@ export function EmployeeList() {
                       </p>
                       <div className="mt-2">
                         <span
-                          className={`inline-flex px-2 py-0.5 rounded-full text-xs ${
-                            employee.idCardPrepared
-                              ? 'bg-green-100 text-green-700'
-                              : 'bg-orange-100 text-orange-700'
-                          }`}
+                          className={`inline-flex px-2 py-0.5 rounded-full text-xs ${employee.idCardPrepared
+                            ? 'bg-green-100 text-green-700'
+                            : 'bg-orange-100 text-orange-700'
+                            }`}
                         >
                           {employee.idCardPrepared ? 'Active' : 'Pending'}
                         </span>
