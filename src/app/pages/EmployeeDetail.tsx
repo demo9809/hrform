@@ -115,14 +115,14 @@ export function EmployeeDetail() {
   };
 
   const handleDownloadPhoto = () => {
-    if (employee?.signedUrls?.profilePhoto) {
-      window.open(employee.signedUrls.profilePhoto, '_blank');
+    if (employee?.signedUrls?.photograph) {
+      window.open(employee.signedUrls.photograph, '_blank');
     }
   };
 
   const handleDownloadAllDocs = async () => {
     const docs = [
-      { url: employee?.signedUrls?.profilePhoto, name: 'profile-photo' },
+      { url: employee?.signedUrls?.photograph, name: 'profile-photo' },
       { url: employee?.signedUrls?.aadhaarDoc, name: 'aadhaar-document' },
       { url: employee?.signedUrls?.panDoc, name: 'pan-document' },
       { url: employee?.signedUrls?.passportDoc, name: 'passport-document' },
@@ -168,10 +168,10 @@ export function EmployeeDetail() {
       toast.info('Generating PDF...');
 
       // 1. Add Photo if available
-      if (employee.signedUrls?.profilePhoto) {
+      if (employee.signedUrls?.photograph) {
         try {
           // Use fetch blob method as reliable fallback for signed URLs
-          const response = await fetch(employee.signedUrls.profilePhoto);
+          const response = await fetch(employee.signedUrls.photograph);
           const blob = await response.blob();
           const base64 = await new Promise<string>((resolve) => {
             const reader = new FileReader();
@@ -413,9 +413,9 @@ export function EmployeeDetail() {
                 <div className="relative -mt-16 mb-4 flex justify-center">
                   <div className="w-32 h-32 bg-white rounded-full p-1 shadow-md">
                     <div className="w-full h-full bg-gray-100 rounded-full flex items-center justify-center overflow-hidden">
-                      {employee.signedUrls?.profilePhoto ? (
+                      {employee.signedUrls?.photograph ? (
                         <img
-                          src={employee.signedUrls.profilePhoto}
+                          src={employee.signedUrls.photograph}
                           alt={employee.personalIdentity?.fullName}
                           className="w-full h-full object-cover"
                         />
@@ -446,7 +446,7 @@ export function EmployeeDetail() {
               <div className="space-y-3">
                 <button
                   onClick={handleDownloadPhoto}
-                  disabled={!employee.signedUrls?.profilePhoto}
+                  disabled={!employee.signedUrls?.photograph}
                   className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 rounded-lg text-sm text-gray-700 hover:bg-gray-100 transition-colors disabled:opacity-50"
                 >
                   <span className="flex items-center gap-3">
@@ -547,6 +547,45 @@ export function EmployeeDetail() {
               </div>
             </SectionCard>
 
+            {/* Documents - Added as requested */}
+            <SectionCard title="Documents" icon={<FileText className="w-5 h-5" />}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <IDItem
+                  label="Profile Photo"
+                  value={employee.personalIdentity?.fullName ? `${employee.personalIdentity?.fullName}.jpg` : 'Photo.jpg'}
+                  docUrl={employee.signedUrls?.photograph}
+                  icon={<Users className="w-5 h-5 text-teal-600" />}
+                />
+                <IDItem
+                  label="Aadhaar Card"
+                  value={employee.governmentTax?.aadhaarNumber ? `Aadhaar - ${employee.governmentTax?.aadhaarNumber}` : 'Aadhaar Document'}
+                  docUrl={employee.signedUrls?.aadhaarDoc}
+                  icon={<IdCardIcon className="w-5 h-5 text-teal-600" />}
+                />
+                <IDItem
+                  label="PAN Card"
+                  value={employee.governmentTax?.panNumber ? `PAN - ${employee.governmentTax?.panNumber}` : 'PAN Document'}
+                  docUrl={employee.signedUrls?.panDoc}
+                  icon={<CreditCard className="w-5 h-5 text-teal-600" />}
+                />
+                <IDItem
+                  label="Passport"
+                  value={employee.governmentTax?.passportNumber ? `Passport - ${employee.governmentTax?.passportNumber}` : 'Passport Document'}
+                  docUrl={employee.signedUrls?.passportDoc}
+                  icon={<Globe className="w-5 h-5 text-teal-600" />}
+                />
+                {employee.signedUrls?.educationCertificates?.map((url: string, index: number) => (
+                  <IDItem
+                    key={index}
+                    label={`Education Certificate ${index + 1}`}
+                    value={`Certificate-${index + 1}.pdf`}
+                    docUrl={url}
+                    icon={<GraduationCap className="w-5 h-5 text-teal-600" />}
+                  />
+                ))}
+              </div>
+            </SectionCard>
+
             {/* Education & Experience */}
             <SectionCard title="Education & Experience" icon={<GraduationCap className="w-5 h-5" />}>
               <div className="space-y-8">
@@ -600,18 +639,12 @@ export function EmployeeDetail() {
               </div>
             </SectionCard>
 
-            {/* Identity & Bank */}
+            {/* Identity & Bank - Condensed */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              {/* Identity */}
-              <SectionCard title="Identity Documents" icon={<IdCardIcon className="w-5 h-5" />}>
-                <div className="space-y-3">
-                  <IDItem label="Aadhaar" value={employee.governmentTax?.aadhaarNumber} docUrl={employee.signedUrls?.aadhaarDoc} />
-                  <IDItem label="PAN Card" value={employee.governmentTax?.panNumber} docUrl={employee.signedUrls?.panDoc} />
-                  <IDItem label="Passport" value={employee.governmentTax?.passportNumber} docUrl={employee.signedUrls?.passportDoc} />
-                </div>
-              </SectionCard>
+              {/* Identity - Removed duplicated card wrapper as it's inside the main layout already or needs proper structure */}
+              {/* Actually, it seems I messed up the nesting in previous edits. Let's fix the Identity part. */}
 
-              {/* Bank */}
+              {/* Bank Details */}
               <SectionCard title="Bank Details" icon={<CreditCard className="w-5 h-5" />}>
                 <div className="space-y-3">
                   <InfoItem label="Bank Name" value={employee.bankDetails?.bankName} />
@@ -652,6 +685,45 @@ function SectionCard({ title, icon, children }: { title: string; icon: React.Rea
         {children}
       </div>
     </div>
+  )
+}
+
+function InfoItem({ label, value, icon, fullWidth = false }: { label: string; value: string; icon?: React.ReactNode; fullWidth?: boolean }) {
+  return (
+    <div className={fullWidth ? 'w-full' : ''}>
+      <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 opacity-80">{label}</p>
+      <div className="flex items-center gap-2 text-sm text-gray-900 font-medium">
+        {icon}
+        <span>{value || 'N/A'}</span>
+      </div>
+    </div>
+  )
+}
+
+function IDItem({ label, value, docUrl, icon }: { label: string; value: string; docUrl?: string, icon?: React.ReactNode }) {
+  return (
+    <div className="flex items-center justify-between p-3 bg-gray-50 rounded-lg group hover:bg-gray-100 transition-colors border border-gray-100">
+      <div className="flex items-center gap-3">
+        {icon && <div className="p-2 bg-white rounded-md shadow-sm">{icon}</div>}
+        <div>
+          <p className="text-xs text-gray-500">{label}</p>
+          <p className="text-sm font-medium text-gray-900 truncate max-w-[150px] sm:max-w-xs">{value || 'N/A'}</p>
+        </div>
+      </div>
+      {docUrl && (
+        <a
+          href={docUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-teal-600 p-2 hover:bg-white rounded-lg transition-colors opacity-100 sm:opacity-0 sm:group-hover:opacity-100"
+          title="View/Download Document"
+        >
+          <Download className="w-4 h-4" />
+        </a>
+      )}
+    </div>
+  )
+}
   )
 }
 
