@@ -428,6 +428,46 @@ app.patch("/make-server-0e23869b/employees/:id", async (c) => {
   }
 });
 
+// Delete employee (admin only)
+app.delete("/make-server-0e23869b/employees/:id", async (c) => {
+  try {
+    const authHeader = c.req.header('Authorization');
+    const user = await verifyAdmin(authHeader);
+
+    if (!user) {
+      return c.json({ error: 'Unauthorized' }, 401);
+    }
+
+    const employeeId = c.req.param('id');
+    const employee = await kv.get(`employee:${employeeId}`);
+
+    if (!employee) {
+      return c.json({ error: 'Employee not found' }, 404);
+    }
+
+    // Remove from employee list
+    const employeeListKey = 'employees:list';
+    const existingList = await kv.get(employeeListKey) || [];
+    const updatedList = existingList.filter((id) => id !== employeeId);
+    await kv.set(employeeListKey, updatedList);
+
+    // Remove employee data
+    // kv_store doesn't have a direct delete, but setting to null or removing from list effectively hides it.
+    // However, looking at kv_store.ts (if I could see it), it might have a delete.
+    // Assuming we can just overwrite or ignore for now since list is source of truth.
+    // But better to check kv_store.ts. I'll stick to list removal which effectively deletes it from the app.
+    // Actually, I should check if kv_store has delete.
+    // Wait, I saw kv_store earlier. It has `del`.
+    await kv.del(`employee:${employeeId}`);
+
+    return c.json({ success: true, message: 'Employee deleted successfully' });
+
+  } catch (error) {
+    console.error('Delete employee error:', error);
+    return c.json({ error: 'Failed to delete employee' }, 500);
+  }
+});
+
 // Mark ID card as prepared (admin only)
 app.post("/make-server-0e23869b/employees/:id/id-card-prepared", async (c) => {
   try {

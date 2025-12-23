@@ -9,6 +9,7 @@ import {
   Eye,
   LayoutDashboard,
   LogOut,
+  Trash2,
   IdCard as IdCardIcon,
 } from 'lucide-react';
 import { useAuth, supabase } from '../contexts/AuthContext';
@@ -83,6 +84,44 @@ export function EmployeeList() {
     }
 
     setFilteredEmployees(filtered);
+  };
+
+  const handleDeleteEmployee = async (e: React.MouseEvent, employeeId: string, employeeName: string) => {
+    e.stopPropagation(); // Prevent row click navigation
+
+    if (!window.confirm(`Are you sure you want to delete ${employeeName}? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      const session = await supabase.auth.getSession();
+      const accessToken = session.data.session?.access_token;
+
+      if (!accessToken) {
+        toast.error('Please log in again');
+        return;
+      }
+
+      const response = await fetch(
+        `${SUPABASE_URL}/functions/v1/make-server-0e23869b/employees/${employeeId}`,
+        {
+          method: 'DELETE',
+          headers: {
+            'Authorization': `Bearer ${accessToken}`,
+          },
+        }
+      );
+
+      if (!response.ok) {
+        throw new Error('Failed to delete employee');
+      }
+
+      toast.success('Employee deleted successfully');
+      fetchEmployees(); // Refresh list
+    } catch (error) {
+      console.error('Delete error:', error);
+      toast.error('Failed to delete employee');
+    }
   };
 
   const handleSignOut = async () => {
@@ -260,15 +299,13 @@ export function EmployeeList() {
                               <Download className="w-4 h-4" />
                             </a>
                           )}
-                          {!employee.idCardPrepared && (
-                            <button
-                              onClick={() => navigate(`/admin/employees/${employee.id}`)}
-                              className="p-2 text-orange-600 hover:bg-orange-50 rounded-lg transition-colors"
-                              title="Prepare ID Card"
-                            >
-                              <IdCardIcon className="w-4 h-4" />
-                            </button>
-                          )}
+                          <button
+                            onClick={(e) => handleDeleteEmployee(e, employee.id, employee.personalIdentity?.fullName)}
+                            className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                            title="Delete Employee"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
                         </div>
                       </td>
                     </tr>
@@ -331,6 +368,6 @@ export function EmployeeList() {
           </div>
         </div>
       </div>
-    </div>
+    </div >
   );
 }

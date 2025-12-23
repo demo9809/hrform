@@ -136,7 +136,20 @@ export function EmployeeDetail() {
     toast.success('Opening all documents...');
   };
 
-  const handleExportPDF = () => {
+  const getBase64FromUrl = async (url: string): Promise<string> => {
+    const data = await fetch(url);
+    const blob = await data.blob();
+    return new Promise((resolve) => {
+      const reader = new FileReader();
+      reader.readAsDataURL(blob);
+      reader.onloadend = () => {
+        const base64data = reader.result as string;
+        resolve(base64data);
+      };
+    });
+  };
+
+  const handleExportPDF = async () => {
     if (!employee) return;
 
     const doc = new jsPDF();
@@ -464,16 +477,23 @@ export function EmployeeDetail() {
               title="Education & Experience"
               icon={<GraduationCap className="w-5 h-5" />}
               items={[
-                { label: 'Highest Qualification', value: employee.education?.[0]?.qualification },
-                { label: 'Institution', value: employee.education?.[0]?.institution },
-                { label: 'Year of Completion', value: employee.education?.[0]?.yearOfCompletion },
+                // Education - Map all entries
+                ...(employee.education?.map((edu: any, index: number) => ({
+                  label: `Qualification ${index + 1}`,
+                  value: `${edu.qualification} - ${edu.institution} (${edu.yearOfCompletion})`,
+                  fullWidth: true
+                })) || []),
+
                 { label: 'Experience Type', value: employee.workExperience?.isFresher ? 'Fresher' : 'Experienced' },
-                ...(!employee.workExperience?.isFresher ? [
-                  // Mapping first experience entry if available
-                  { label: 'Previous Company', value: employee.workExperience?.entries?.[0]?.companyName },
-                  { label: 'Previous Role', value: employee.workExperience?.entries?.[0]?.role },
-                  { label: 'Years of Experience', value: employee.workExperience?.entries?.length ? `${employee.workExperience.entries.length} entries` : 'N/A' },
-                ] : []),
+
+                // Experience - Map all entries
+                ...(!employee.workExperience?.isFresher && employee.workExperience?.entries ?
+                  employee.workExperience.entries.map((exp: any, index: number) => ({
+                    label: `Experience ${index + 1}`,
+                    value: `${exp.role} at ${exp.companyName} (${new Date(exp.startDate).toLocaleDateString()} - ${new Date(exp.endDate).toLocaleDateString()})`,
+                    fullWidth: true
+                  }))
+                  : []),
               ]}
             />
 
