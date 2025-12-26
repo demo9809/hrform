@@ -18,7 +18,6 @@ interface WorkExperienceEntry {
   id: string;
   organization: string;
   designation: string;
-  startDate: string;
   endDate: string;
   reasonForLeaving: string;
   experienceLetter: File | null;
@@ -189,7 +188,6 @@ export function OnboardingForm() {
           id: Date.now().toString(),
           organization: '',
           designation: '',
-          startDate: '',
           endDate: '',
           reasonForLeaving: '',
           experienceLetter: null,
@@ -299,15 +297,17 @@ export function OnboardingForm() {
         return true;
 
       case 6: // Work Experience
-        if (!formData.isFresher && formData.workExperience.length === 0) {
-          toast.error('Please add at least one work experience entry');
-          return false;
-        }
-        for (const exp of formData.workExperience) {
-          if (!exp.organization || !exp.designation || !exp.startDate ||
-            !exp.endDate || !exp.reasonForLeaving) {
-            toast.error('Please complete all work experience entries');
+        if (!formData.isFresher) {
+          if (formData.workExperience.length === 0) {
+            toast.error('Please add at least one work experience entry');
             return false;
+          }
+          for (const exp of formData.workExperience) {
+            if (!exp.organization || !exp.designation ||
+              !exp.endDate || !exp.reasonForLeaving) {
+              toast.error('Please complete all work experience entries');
+              return false;
+            }
           }
         }
         return true;
@@ -541,7 +541,7 @@ export function OnboardingForm() {
             <Step6WorkExperience
               isFresher={formData.isFresher}
               workExperience={formData.workExperience}
-              onToggleFresher={(value) => handleInputChange('isFresher', value)}
+              onToggleFresher={(value: boolean) => handleInputChange('isFresher', value)}
               onAdd={addWorkExperience}
               onRemove={removeWorkExperience}
               onUpdate={updateWorkExperience}
@@ -1120,16 +1120,6 @@ function Step6WorkExperience({ isFresher, workExperience, onToggleFresher, onAdd
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <div>
-                  <label className="block text-sm text-gray-700 mb-2">Employment Start Date *</label>
-                  <input
-                    type="date"
-                    value={exp.startDate}
-                    onChange={(e) => onUpdate(exp.id, 'startDate', e.target.value)}
-                    className="w-full px-4 py-2.5 border border-gray-300 rounded-lg focus:ring-2 focus:ring-teal-500 focus:border-transparent outline-none"
-                  />
-                </div>
-
                 <div>
                   <label className="block text-sm text-gray-700 mb-2">Employment End Date *</label>
                   <input

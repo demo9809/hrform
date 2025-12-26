@@ -236,6 +236,7 @@ export function EmployeeDetail() {
         body: [
           ['Full Name', employee.personalIdentity?.fullName || 'N/A'],
           ['Date of Birth', employee.personalIdentity?.dateOfBirth ? new Date(employee.personalIdentity.dateOfBirth).toLocaleDateString() : 'N/A'],
+          ['Date of Joining', employee.company?.dateOfJoining ? new Date(employee.company.dateOfJoining).toLocaleDateString() : 'N/A'],
           ['Gender', employee.personalIdentity?.gender || 'N/A'],
           ['Blood Group', employee.personalIdentity?.bloodGroup || 'N/A'],
           ['Personal Email', employee.personalIdentity?.personalEmail || 'N/A'],
@@ -533,6 +534,7 @@ export function EmployeeDetail() {
             <SectionCard title="Personal Information" icon={<User className="w-5 h-5" />}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <InfoItem label="Date of Birth" value={employee.personalIdentity?.dateOfBirth} />
+                <InfoItem label="Date of Joining" value={employee.company?.dateOfJoining} />
                 <InfoItem label="Gender" value={employee.personalIdentity?.gender} />
                 <InfoItem label="Blood Group" value={employee.personalIdentity?.bloodGroup} />
                 <InfoItem label="Marital Status" value={employee.personalIdentity?.maritalStatus} />
