@@ -80,7 +80,12 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
                         'Authorization': `Bearer ${accessToken}`,
                         'Content-Type': 'application/json',
                     },
-                    body: JSON.stringify(formData),
+                    body: JSON.stringify({
+                        personal_identity: formData.personalIdentity,
+                        company: formData.company,
+                        address: formData.address,
+                        government_tax: formData.governmentTax,
+                    }),
                 }
             );
 
