@@ -15,7 +15,7 @@ app.use(
   cors({
     origin: "*",
     allowHeaders: ["Content-Type", "Authorization"],
-    allowMethods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
+    allowMethods: ["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
     exposeHeaders: ["Content-Length"],
     maxAge: 600,
   }),
@@ -466,7 +466,31 @@ app.patch("/make-server-0e23869b/employees/:id", async (c) => {
     }
 
     const employeeId = c.req.param('id');
-    const updates = await c.req.json();
+
+    // Check if request is FormData or JSON
+    const contentType = c.req.header('Content-Type') || '';
+    let updates: any = {};
+
+    if (contentType.includes('multipart/form-data')) {
+      // Handle FormData (from UpdateCompanyModal)
+      const formData = await c.req.formData();
+
+      // Parse company data if present
+      const companyData = formData.get('company');
+      if (companyData) {
+        updates.company = JSON.parse(companyData as string);
+      }
+
+      // Handle other potential fields
+      for (const [key, value] of formData.entries()) {
+        if (key !== 'company') {
+          updates[key] = value;
+        }
+      }
+    } else {
+      // Handle JSON (backward compatibility)
+      updates = await c.req.json();
+    }
 
     const employee = await kv.get(`employee:${employeeId}`);
 

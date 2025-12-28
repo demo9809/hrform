@@ -2,7 +2,7 @@ import { useState } from 'react';
 import { X, Save, Building, User, MapPin, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
-import { SUPABASE_URL } from '../../utils/supabase/client';
+// import { SUPABASE_URL } from '../../utils/supabase/client'; // Removing to avoid shadowing/confusion
 
 interface EditEmployeeModalProps {
     employee: any;
@@ -26,12 +26,7 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
             mobileNumber: employee.personalIdentity?.mobileNumber || '',
             personalEmail: employee.personalIdentity?.personalEmail || '',
         },
-        company: {
-            department: employee.company?.department || '',
-            designation: employee.company?.designation || '',
-            dateOfJoining: employee.company?.dateOfJoining || '',
-            officeLocation: employee.company?.officeLocation || '',
-        },
+
         address: {
             currentAddress: employee.address?.currentAddress || '',
             permanentAddress: employee.address?.permanentAddress || '',
@@ -58,8 +53,6 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
         setLoading(true);
 
         try {
-            // NOTE: We are using the Supabase client just to get the session token
-            // The actual update happens via the Edge Function
             const { createClient } = await import('@supabase/supabase-js');
             const { SUPABASE_URL, SUPABASE_ANON_KEY } = await import('../../utils/supabase/client');
             const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
@@ -72,33 +65,67 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
                 return;
             }
 
-            const response = await fetch(
-                `${SUPABASE_URL}/functions/v1/make-server-0e23869b/employees/${employee.id}`,
-                {
-                    method: 'PATCH',
-                    headers: {
-                        'Authorization': `Bearer ${accessToken}`,
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({
-                        personal_identity: formData.personalIdentity,
-                        company: formData.company,
-                        address: formData.address,
-                        government_tax: formData.governmentTax,
-                    }),
-                }
-            );
+            // 1. Update Personal Identity (Employees Table)
+            const { error: empError } = await supabase
+                .from('employees')
+                .update({
+                    full_name: formData.personalIdentity.fullName,
+                    date_of_birth: formData.personalIdentity.dateOfBirth,
+                    gender: formData.personalIdentity.gender,
+                    blood_group: formData.personalIdentity.bloodGroup,
+                    mobile_number: formData.personalIdentity.mobileNumber,
+                    personal_email: formData.personalIdentity.personalEmail,
+                })
+                .eq('id', employee.id);
 
-            if (!response.ok) {
-                throw new Error('Failed to update employee');
-            }
+            if (empError) throw empError;
+
+            // 2. Update Government & Tax (Identities Table)
+            // We assume one identity record per employee for now.
+            const { error: identityError } = await supabase
+                .from('employee_identities')
+                .update({
+                    aadhaar_number: formData.governmentTax.aadhaarNumber,
+                    pan_number: formData.governmentTax.panNumber,
+                    passport_number: formData.governmentTax.passportNumber,
+                })
+                .eq('employee_id', employee.id);
+
+            if (identityError) throw identityError;
+
+            // 3. Update Addresses
+            // Current Address
+            const { error: currAddrError } = await supabase
+                .from('employee_addresses')
+                .update({
+                    address_line: formData.address.currentAddress
+                    // Note: City, state, etc are not in the edit modal currently? 
+                    // Looking at state init: formData.address only has currentAddress line.
+                    // If the modal form doesn't expose city/state, we update what we have.
+                    // The View shows we only have TextAreaField for address_line.
+                })
+                .eq('employee_id', employee.id)
+                .eq('type', 'current');
+
+            if (currAddrError) throw currAddrError;
+
+            // Permanent Address
+            const { error: permAddrError } = await supabase
+                .from('employee_addresses')
+                .update({
+                    address_line: formData.address.permanentAddress
+                })
+                .eq('employee_id', employee.id)
+                .eq('type', 'permanent');
+
+            if (permAddrError) throw permAddrError;
 
             toast.success('Employee updated successfully');
             onUpdate();
             onClose();
-        } catch (error) {
+        } catch (error: any) {
             console.error('Update error:', error);
-            toast.error('Failed to update employee details');
+            toast.error(`Update failed: ${error.message || 'Unknown error'}`);
         } finally {
             setLoading(false);
         }
@@ -108,13 +135,12 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
 
     const tabs = [
         { id: 'personal', label: 'Personal', icon: User },
-        { id: 'company', label: 'Company', icon: Building },
         { id: 'address', label: 'Address', icon: MapPin },
         { id: 'governmentTax', label: 'Legal & ID', icon: FileText },
     ];
 
     return (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+        <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
             <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
@@ -184,32 +210,7 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
                             </div>
                         )}
 
-                        {/* Company Details Tab */}
-                        {activeTab === 'company' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <InputField
-                                    label="Department"
-                                    value={formData.company.department}
-                                    onChange={(v) => handleChange('company', 'department', v)}
-                                />
-                                <InputField
-                                    label="Designation"
-                                    value={formData.company.designation}
-                                    onChange={(v) => handleChange('company', 'designation', v)}
-                                />
-                                <InputField
-                                    label="Date of Joining"
-                                    type="date"
-                                    value={formData.company.dateOfJoining}
-                                    onChange={(v) => handleChange('company', 'dateOfJoining', v)}
-                                />
-                                <InputField
-                                    label="Office Location"
-                                    value={formData.company.officeLocation}
-                                    onChange={(v) => handleChange('company', 'officeLocation', v)}
-                                />
-                            </div>
-                        )}
+
 
                         {/* Address Tab */}
                         {activeTab === 'address' && (

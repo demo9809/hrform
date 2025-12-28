@@ -25,6 +25,7 @@ import {
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { EditEmployeeModal } from '../components/EditEmployeeModal';
+import { UpdateCompanyModal } from '../components/UpdateCompanyModal';
 import { useAuth, supabase } from '../contexts/AuthContext';
 import { SUPABASE_URL } from '../../utils/supabase/client';
 
@@ -36,6 +37,16 @@ export function EmployeeDetail() {
   const [loading, setLoading] = useState(true);
   const [markingPrepared, setMarkingPrepared] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
+  const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+
+  // Helper to format date as DD-MM-YYYY
+  const formatDate = (dateString: string | null | undefined) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    if (isNaN(date.getTime())) return 'N/A';
+    // en-GB returns DD/MM/YYYY. We replace slashes with dashes.
+    return date.toLocaleDateString('en-GB').replace(/\//g, '-');
+  };
 
   useEffect(() => {
     if (id) {
@@ -54,21 +65,138 @@ export function EmployeeDetail() {
         return;
       }
 
-      const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/make-server-0e23869b/employees/${id}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        }
-      );
+      // Fetch full employee profile from relational tables
+      const { data, error } = await supabase
+        .from('employees')
+        .select(`
+          *,
+          employee_identities (*),
+          employee_addresses (*),
+          employee_bank_details (*),
+          employee_education (*),
+          employee_experience (*),
+          employee_emergency_contacts (*)
+        `)
+        .eq('id', id)
+        .single();
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch employee');
+      if (error) {
+        throw error;
       }
 
-      const data = await response.json();
-      setEmployee(data.employee);
+      if (!data) {
+        throw new Error('Employee not found');
+      }
+
+      // Process Signed URLs
+      const signedUrls: any = {};
+      const getSignedUrl = async (path: string | null) => {
+        if (!path) return '';
+        const { data } = await supabase.storage
+          .from('make-0e23869b-employee-docs')
+          .createSignedUrl(path, 3600);
+        return data?.signedUrl || '';
+      };
+
+      // 1. Photograph
+      if (data.photograph_path) {
+        signedUrls.photograph = await getSignedUrl(data.photograph_path);
+      }
+
+      // 2. Education Certificates
+      if (data.employee_education) {
+        signedUrls.educationCertificates = await Promise.all(
+          data.employee_education.map((edu: any) => getSignedUrl(edu.certificate_path))
+        );
+      }
+
+      // 3. Experience Letters & Relieving Letters
+      if (data.employee_experience) {
+        signedUrls.experienceLetters = await Promise.all(
+          data.employee_experience.map((exp: any) => getSignedUrl(exp.experience_letter_path))
+        );
+        signedUrls.relievingLetters = await Promise.all(
+          data.employee_experience.map((exp: any) => getSignedUrl(exp.relieving_letter_path))
+        );
+      }
+
+      // Map relational data back to the nested structure expected by the UI
+      const mappedEmployee = {
+        id: data.id,
+        employeeId: data.employee_id,
+        submittedAt: data.submitted_at,
+        idCardPrepared: data.id_card_prepared,
+
+        personalIdentity: {
+          fullName: data.full_name,
+          dateOfBirth: data.date_of_birth,
+          gender: data.gender,
+          bloodGroup: data.blood_group,
+          maritalStatus: data.marital_status,
+          nationality: data.nationality,
+          personalEmail: data.personal_email,
+          mobileNumber: data.mobile_number,
+        },
+
+        address: {
+          currentAddress: data.employee_addresses?.find((a: any) => a.type === 'current')?.address_line,
+          city: data.employee_addresses?.find((a: any) => a.type === 'current')?.city,
+          district: data.employee_addresses?.find((a: any) => a.type === 'current')?.district,
+          state: data.employee_addresses?.find((a: any) => a.type === 'current')?.state,
+          pincode: data.employee_addresses?.find((a: any) => a.type === 'current')?.pincode,
+          permanentAddress: data.employee_addresses?.find((a: any) => a.type === 'permanent')?.address_line,
+        },
+
+        governmentTax: {
+          aadhaarNumber: data.employee_identities?.[0]?.aadhaar_number,
+          panNumber: data.employee_identities?.[0]?.pan_number,
+          passportNumber: data.employee_identities?.[0]?.passport_number,
+          passportExpiry: data.employee_identities?.[0]?.passport_expiry,
+        },
+
+        bankDetails: {
+          accountHolderName: data.employee_bank_details?.[0]?.account_holder_name,
+          bankName: data.employee_bank_details?.[0]?.bank_name,
+          accountNumber: data.employee_bank_details?.[0]?.account_number,
+          ifscCode: data.employee_bank_details?.[0]?.ifsc_code,
+        },
+
+        education: data.employee_education?.map((edu: any) => ({
+          qualification: edu.qualification,
+          courseSpecialization: edu.course_specialization,
+          institution: edu.institution,
+          yearOfCompletion: edu.year_of_completion,
+        })),
+
+        workExperience: {
+          isFresher: data.is_fresher,
+          entries: data.employee_experience?.map((exp: any) => ({
+            organization: exp.organization,
+            designation: exp.designation,
+            endDate: exp.end_date, // Using end_date as simpler proxy for UI for now
+            startDate: exp.created_at, // Placeholder as schema lacked start_date in simple version, can be added later
+            reasonForLeaving: exp.reason_for_leaving
+          }))
+        },
+
+        emergencyContact: {
+          name: data.employee_emergency_contacts?.[0]?.name,
+          relationship: data.employee_emergency_contacts?.[0]?.relationship,
+          phone: data.employee_emergency_contacts?.[0]?.phone,
+        },
+
+        company: {
+          department: data.department,
+          designation: data.designation,
+          dateOfJoining: data.date_of_joining,
+          officeLocation: data.office_location,
+        },
+
+        signedUrls
+      };
+
+      setEmployee(mappedEmployee);
+
     } catch (error) {
       console.error('Fetch employee error:', error);
       toast.error('Failed to load employee details');
@@ -90,18 +218,14 @@ export function EmployeeDetail() {
         return;
       }
 
-      const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/make-server-0e23869b/employees/${id}/id-card-prepared`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        }
-      );
+      // Direct update to employees table
+      const { error } = await supabase
+        .from('employees')
+        .update({ id_card_prepared: true })
+        .eq('id', id);
 
-      if (!response.ok) {
-        throw new Error('Failed to mark ID card as prepared');
+      if (error) {
+        throw error;
       }
 
       toast.success('ID card marked as prepared!');
@@ -229,14 +353,31 @@ export function EmployeeDetail() {
 
       let finalY = 85;
 
-      // 4. Personal Details Table
+      // 4. Job Details Table
+      autoTable(doc, {
+        startY: finalY,
+        head: [['Job Details', '']],
+        body: [
+          ['Department', employee.company?.department || 'N/A'],
+          ['Designation', employee.company?.designation || 'N/A'],
+          ['Date of Joining', formatDate(employee.company?.dateOfJoining)],
+          ['Work Mode', employee.company?.officeLocation || 'N/A'],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [244, 122, 94], textColor: 255 },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50, textColor: 50 } },
+      });
+
+      finalY = (doc as any).lastAutoTable.finalY + 10;
+
+      // 5. Personal Details Table
       autoTable(doc, {
         startY: finalY,
         head: [['Personal Details', '']],
         body: [
           ['Full Name', employee.personalIdentity?.fullName || 'N/A'],
-          ['Date of Birth', employee.personalIdentity?.dateOfBirth ? new Date(employee.personalIdentity.dateOfBirth).toLocaleDateString() : 'N/A'],
-          ['Date of Joining', employee.company?.dateOfJoining ? new Date(employee.company.dateOfJoining).toLocaleDateString() : 'N/A'],
+          ['Date of Birth', formatDate(employee.personalIdentity?.dateOfBirth)],
+          // Date of Joining moved to Job Details
           ['Gender', employee.personalIdentity?.gender || 'N/A'],
           ['Blood Group', employee.personalIdentity?.bloodGroup || 'N/A'],
           ['Personal Email', employee.personalIdentity?.personalEmail || 'N/A'],
@@ -334,7 +475,7 @@ export function EmployeeDetail() {
         expRows = employee.workExperience.entries.map((exp: any) => [
           exp.organization || 'N/A',
           exp.designation || 'N/A',
-          `${new Date(exp.startDate).toLocaleDateString()} - ${new Date(exp.endDate).toLocaleDateString()}`
+          `${formatDate(exp.startDate)} - ${formatDate(exp.endDate)}`
         ]);
       }
 
@@ -396,11 +537,18 @@ export function EmployeeDetail() {
             </div>
             <div className="flex items-center gap-3">
               <button
+                onClick={() => setIsCompanyModalOpen(true)}
+                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 transition-colors"
+              >
+                <Briefcase className="w-4 h-4" />
+                Job Details
+              </button>
+              <button
                 onClick={() => setIsEditModalOpen(true)}
                 className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
               >
                 <Edit className="w-4 h-4" />
-                Edit
+                Edit Profile
               </button>
               <button
                 onClick={handleExportPDF}
@@ -530,17 +678,27 @@ export function EmployeeDetail() {
           {/* Main Content - Right Column */}
           <div className="lg:col-span-2 space-y-6">
 
+            {/* Job Details - New Section */}
+            <SectionCard title="Job Details" icon={<Briefcase className="w-5 h-5" />}>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <InfoItem label="Department" value={employee.company?.department} />
+                <InfoItem label="Designation" value={employee.company?.designation} />
+                <InfoItem label="Date of Joining" value={formatDate(employee.company?.dateOfJoining)} />
+                <InfoItem label="Work Mode" value={employee.company?.officeLocation} />
+              </div>
+            </SectionCard>
+
             {/* Personal Details */}
             <SectionCard title="Personal Information" icon={<User className="w-5 h-5" />}>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                <InfoItem label="Date of Birth" value={employee.personalIdentity?.dateOfBirth} />
-                <InfoItem label="Date of Joining" value={employee.company?.dateOfJoining} />
+                <InfoItem label="Full Name" value={employee.personalIdentity?.fullName} />
+                <InfoItem label="Date of Birth" value={formatDate(employee.personalIdentity?.dateOfBirth)} />
                 <InfoItem label="Gender" value={employee.personalIdentity?.gender} />
                 <InfoItem label="Blood Group" value={employee.personalIdentity?.bloodGroup} />
                 <InfoItem label="Marital Status" value={employee.personalIdentity?.maritalStatus} />
+                <InfoItem label="Nationality" value={employee.personalIdentity?.nationality} />
                 <InfoItem label="Email" value={employee.personalIdentity?.personalEmail} />
                 <InfoItem label="Phone" value={employee.personalIdentity?.mobileNumber} />
-                <InfoItem label="Emergency Contact" value={`${employee.emergencyContact?.name || 'N/A'} (${employee.emergencyContact?.phone || ''})`} />
               </div>
             </SectionCard>
 
@@ -635,7 +793,7 @@ export function EmployeeDetail() {
                               </div>
                               <div className="text-right">
                                 <span className="text-xs text-gray-500 block">
-                                  {new Date(exp.startDate).toLocaleDateString()} - {new Date(exp.endDate).toLocaleDateString()}
+                                  {formatDate(exp.startDate)} - {formatDate(exp.endDate)}
                                 </span>
                               </div>
                             </div>
@@ -699,6 +857,15 @@ export function EmployeeDetail() {
           employee={employee}
           isOpen={isEditModalOpen}
           onClose={() => setIsEditModalOpen(false)}
+          onUpdate={fetchEmployee}
+        />
+      )}
+
+      {employee && (
+        <UpdateCompanyModal
+          employee={employee}
+          isOpen={isCompanyModalOpen}
+          onClose={() => setIsCompanyModalOpen(false)}
           onUpdate={fetchEmployee}
         />
       )}

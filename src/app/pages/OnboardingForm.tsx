@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { toast } from 'sonner';
 import { ChevronLeft, ChevronRight, Check, Upload, User, Plus, X } from 'lucide-react';
-import { SUPABASE_URL, SUPABASE_ANON_KEY } from '../../utils/supabase/client';
+import { supabase } from '../../utils/supabase/client';
 
 const TOTAL_STEPS = 9;
 
@@ -356,101 +356,201 @@ export function OnboardingForm() {
     setIsSubmitting(true);
 
     try {
-      const submitFormData = new FormData();
+      // 1. Generate IDs (DB UUID and Employee ID)
+      const dbId = crypto.randomUUID();
+      const timestamp = Date.now();
+      const randomSuffix = Math.random().toString(36).substring(2, 7).toUpperCase();
+      const employeeId = `EMP-${randomSuffix}-${timestamp}`;
+      const bucketName = 'make-0e23869b-employee-docs';
 
-      // Add all simple fields
-      const simpleFields = {
-        fullName: formData.fullName,
-        dateOfBirth: formData.dateOfBirth,
-        gender: formData.gender,
-        bloodGroup: formData.bloodGroup,
-        maritalStatus: formData.maritalStatus,
-        nationality: formData.nationality,
-        personalEmail: formData.personalEmail,
-        mobileNumber: formData.mobileNumber,
-        currentAddress: formData.currentAddress,
-        city: formData.city,
-        district: formData.district,
-        state: formData.state,
-        pincode: formData.pincode,
-        permanentAddress: formData.permanentAddress || formData.currentAddress,
-        aadhaarNumber: formData.aadhaarNumber,
-        panNumber: formData.panNumber,
-        passportNumber: formData.passportNumber,
-        passportExpiry: formData.passportExpiry,
-        accountHolderName: formData.accountHolderName,
-        bankName: formData.bankName,
-        accountNumber: formData.accountNumber,
-        ifscCode: formData.ifscCode,
-        isFresher: formData.isFresher,
-        emergencyContactName: formData.emergencyContactName,
-        emergencyRelationship: formData.emergencyRelationship,
-        emergencyPhone: formData.emergencyPhone,
-        digitalSignature: formData.digitalSignature,
+      // Track uploaded file paths to use in DB inserts
+      const filePaths: any = {
+        photograph: '',
+        education: [] as string[],
+        experienceLetters: [] as string[],
+        relievingLetters: [] as string[],
       };
 
-      Object.entries(simpleFields).forEach(([key, value]) => {
-        submitFormData.append(key, String(value));
-      });
+      // Helper for file upload
+      const uploadFile = async (file: File, path: string) => {
+        const { error } = await supabase.storage
+          .from(bucketName)
+          .upload(path, file, {
+            contentType: file.type,
+            upsert: false
+          });
 
-      // Add education as JSON
-      submitFormData.append('education', JSON.stringify(
-        formData.education.map(({ id, certificate, ...rest }) => rest)
-      ));
+        if (error) throw new Error(`File Upload Error (${file.name}): ${error.message}`);
+        return path;
+      };
 
-      // Add work experience as JSON
-      submitFormData.append('workExperience', JSON.stringify(
-        formData.workExperience.map(({ id, experienceLetter, relievingLetter, ...rest }) => rest)
-      ));
+      // --- File Uploads ---
 
-      // Add files
-      if (formData.photograph) submitFormData.append('photograph', formData.photograph);
-
-      // Add education certificates
-      formData.education.forEach((edu, index) => {
-        if (edu.certificate) {
-          submitFormData.append(`educationCertificate_${index}`, edu.certificate);
-        }
-      });
-
-      // Add experience letters
-      formData.workExperience.forEach((exp, index) => {
-        if (exp.experienceLetter) {
-          submitFormData.append(`experienceLetter_${index}`, exp.experienceLetter);
-        }
-        if (exp.relievingLetter) {
-          submitFormData.append(`relievingLetter_${index}`, exp.relievingLetter);
-        }
-      });
-
-      const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/make-server-0e23869b/employees`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${SUPABASE_ANON_KEY}`,
-          },
-          body: submitFormData,
-        }
-      );
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        throw new Error(data.error || 'Submission failed');
+      // Upload Photograph
+      if (formData.photograph) {
+        const ext = formData.photograph.name.split('.').pop();
+        const path = `${employeeId}/photograph-${Date.now()}.${ext}`;
+        filePaths.photograph = await uploadFile(formData.photograph, path);
       }
 
+      // Upload Education Certificates
+      const educationWithPaths = await Promise.all(formData.education.map(async (edu, index) => {
+        let certPath = '';
+        if (edu.certificate) {
+          const ext = edu.certificate.name.split('.').pop();
+          const path = `${employeeId}/education-cert-${index}-${Date.now()}.${ext}`;
+          certPath = await uploadFile(edu.certificate, path);
+        }
+        return { ...edu, certificate_path: certPath };
+      }));
+
+      // Upload Work Experience Documents
+      const experienceWithPaths = await Promise.all(formData.workExperience.map(async (exp, index) => {
+        let expLetterPath = '';
+        let relLetterPath = '';
+
+        if (exp.experienceLetter) {
+          const ext = exp.experienceLetter.name.split('.').pop();
+          const path = `${employeeId}/exp-letter-${index}-${Date.now()}.${ext}`;
+          expLetterPath = await uploadFile(exp.experienceLetter, path);
+        }
+
+        if (exp.relievingLetter) {
+          const ext = exp.relievingLetter.name.split('.').pop();
+          const path = `${employeeId}/rel-letter-${index}-${Date.now()}.${ext}`;
+          relLetterPath = await uploadFile(exp.relievingLetter, path);
+        }
+
+        return { ...exp, experience_letter_path: expLetterPath, relieving_letter_path: relLetterPath };
+      }));
+
+      // --- Database Inserts ---
+
+      // 1. Insert into 'employees' table with client-generated UUID
+      const { error: empError } = await supabase
+        .from('employees')
+        .insert([{
+          id: dbId, // Explicitly set UUID
+          employee_id: employeeId,
+          full_name: formData.fullName,
+          date_of_birth: formData.dateOfBirth,
+          gender: formData.gender,
+          blood_group: formData.bloodGroup,
+          marital_status: formData.maritalStatus,
+          nationality: formData.nationality,
+          personal_email: formData.personalEmail,
+          mobile_number: formData.mobileNumber,
+          status: 'pending',
+          id_card_prepared: false,
+          is_fresher: formData.isFresher,
+          submitted_at: new Date().toISOString(),
+          photograph_path: filePaths.photograph,
+          digital_signature_path: formData.digitalSignature
+        }]);
+
+      if (empError) throw new Error(`Database Error (Employees): ${empError.message}`);
+      // const dbId = empData.id; // Removed as we generate it client-side
+
+      // 2. Insert key related records in parallel
+      const insertPromises = [];
+
+      // Identities
+      insertPromises.push(supabase.from('employee_identities').insert([{
+        employee_id: dbId,
+        aadhaar_number: formData.aadhaarNumber,
+        pan_number: formData.panNumber,
+        passport_number: formData.passportNumber || null,
+        passport_expiry: formData.passportExpiry || null
+      }]));
+
+      // Addresses
+      const addressesToInsert: any[] = [
+        {
+          employee_id: dbId,
+          type: 'current',
+          address_line: formData.currentAddress,
+          city: formData.city,
+          district: formData.district,
+          state: formData.state,
+          pincode: formData.pincode
+        }
+      ];
+      // Add permanent address
+      if (formData.permanentAddress) {
+        addressesToInsert.push({
+          employee_id: dbId,
+          type: 'permanent',
+          address_line: formData.permanentAddress,
+          city: null,
+          district: null,
+          state: null,
+          pincode: null
+        });
+      }
+      insertPromises.push(supabase.from('employee_addresses').insert(addressesToInsert));
+
+      // Bank Details
+      insertPromises.push(supabase.from('employee_bank_details').insert([{
+        employee_id: dbId,
+        account_holder_name: formData.accountHolderName,
+        bank_name: formData.bankName,
+        account_number: formData.accountNumber,
+        ifsc_code: formData.ifscCode
+      }]));
+
+      // Emergency Contacts
+      insertPromises.push(supabase.from('employee_emergency_contacts').insert([{
+        employee_id: dbId,
+        name: formData.emergencyContactName,
+        relationship: formData.emergencyRelationship,
+        phone: formData.emergencyPhone
+      }]));
+
+      // Education
+      if (educationWithPaths.length > 0) {
+        const eduRecords = educationWithPaths.map(e => ({
+          employee_id: dbId,
+          qualification: e.qualification,
+          course_specialization: e.courseSpecialization,
+          institution: e.institution,
+          year_of_completion: e.yearOfCompletion,
+          certificate_path: e.certificate_path
+        }));
+        insertPromises.push(supabase.from('employee_education').insert(eduRecords));
+      }
+
+      // Experience
+      if (experienceWithPaths.length > 0) {
+        const expRecords = experienceWithPaths.map(e => ({
+          employee_id: dbId,
+          organization: e.organization,
+          designation: e.designation,
+          end_date: e.endDate,
+          reason_for_leaving: e.reasonForLeaving,
+          experience_letter_path: e.experience_letter_path,
+          relieving_letter_path: e.relieving_letter_path
+        }));
+        insertPromises.push(supabase.from('employee_experience').insert(expRecords));
+      }
+
+      // Wait for all inserts
+      const results = await Promise.all(insertPromises);
+
+      // Check for errors in results
+      const firstError = results.find(r => r.error)?.error;
+      if (firstError) throw new Error(`Database Error (Related Records): ${firstError.message}`);
+
       toast.success('Onboarding completed successfully!');
-      toast.success(`Your Employee ID: ${data.employeeId}`, { duration: 5000 });
+      toast.success(`Your Employee ID: ${employeeId}`, { duration: 5000 });
 
       // Reset form after 3 seconds
       setTimeout(() => {
         window.location.reload();
       }, 3000);
 
-    } catch (error) {
+    } catch (error: any) {
       console.error('Submission error:', error);
-      toast.error('Failed to submit form. Please try again.');
+      toast.error(error.message || 'Failed to submit form. Please try again.');
     } finally {
       setIsSubmitting(false);
     }

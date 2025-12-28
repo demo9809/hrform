@@ -40,21 +40,65 @@ export function EmployeeList() {
         return;
       }
 
-      const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/make-server-0e23869b/employees`,
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        }
-      );
+      // Fetch employees from new relational tables
+      const { data: employeesData, error } = await supabase
+        .from('employees')
+        .select(`
+          *,
+          employee_addresses (
+            city
+          ),
+          employee_experience (
+            organization,
+            designation
+          )
+        `)
+        .order('submitted_at', { ascending: false });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch employees');
+      if (error) {
+        throw error;
       }
 
-      const data = await response.json();
-      setEmployees(data.employees || []);
+      // Process and sign URLs
+      const processedEmployees = await Promise.all(
+        (employeesData || []).map(async (emp: any) => {
+          const signedUrls: any = {};
+
+          // Generate signed URL for photograph if it exists
+          if (emp.photograph_path) {
+            const { data } = await supabase.storage
+              .from('make-0e23869b-employee-docs')
+              .createSignedUrl(emp.photograph_path, 3600); // 1 hour expiry
+
+            if (data?.signedUrl) {
+              signedUrls.photograph = data.signedUrl;
+            }
+          }
+
+          // Map to UI expectation
+          return {
+            id: emp.id,
+            employeeId: emp.employee_id,
+            personalIdentity: {
+              fullName: emp.full_name,
+              personalEmail: emp.personal_email,
+            },
+            address: {
+              city: emp.employee_addresses?.[0]?.city,
+            },
+            company: {
+              // Taking the first experience entry as current/latest for list view
+              department: 'N/A', // Schema doesn't have department yet, could be added later
+              designation: emp.employee_experience?.[0]?.designation
+            },
+            submittedAt: emp.submitted_at,
+            idCardPrepared: emp.id_card_prepared,
+            signedUrls
+          };
+        })
+      );
+
+      setEmployees(processedEmployees);
     } catch (error) {
       console.error('Fetch employees error:', error);
       toast.error('Failed to load employees');
@@ -99,18 +143,14 @@ export function EmployeeList() {
         return;
       }
 
-      const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/make-server-0e23869b/employees/${employeeId}`,
-        {
-          method: 'DELETE',
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        }
-      );
+      // Delete from employees table (cascades to related tables)
+      const { error } = await supabase
+        .from('employees')
+        .delete()
+        .eq('id', employeeId);
 
-      if (!response.ok) {
-        throw new Error('Failed to delete employee');
+      if (error) {
+        throw error;
       }
 
       toast.success('Employee deleted successfully');
@@ -190,7 +230,7 @@ export function EmployeeList() {
               <tr>
                 <th className="text-left px-6 py-4 text-sm text-gray-700">Employee</th>
                 <th className="text-left px-6 py-4 text-sm text-gray-700">Employee ID</th>
-                <th className="text-left px-6 py-4 text-sm text-gray-700">Joining Date</th>
+                <th className="text-left px-6 py-4 text-sm text-gray-700">Submission Date</th>
                 <th className="text-left px-6 py-4 text-sm text-gray-700">Status</th>
                 <th className="text-left px-6 py-4 text-sm text-gray-700">Actions</th>
               </tr>
@@ -224,7 +264,7 @@ export function EmployeeList() {
                     </td>
                     <td className="px-6 py-4 text-gray-900">{employee.employeeId}</td>
                     <td className="px-6 py-4 text-gray-900">
-                      {employee.submittedAt ? new Date(employee.submittedAt).toLocaleDateString() : 'N/A'}
+                      {employee.submittedAt ? new Date(employee.submittedAt).toLocaleDateString('en-GB') : 'N/A'}
                     </td>
                     <td className="px-6 py-4">
                       <span

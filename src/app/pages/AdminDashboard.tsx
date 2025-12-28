@@ -33,21 +33,52 @@ export function AdminDashboard() {
         return;
       }
 
-      const response = await fetch(
-        `${SUPABASE_URL}/functions/v1/make-server-0e23869b/dashboard/stats`,
-        {
-          headers: {
-            'Authorization': `Bearer ${accessToken}`,
-          },
-        }
-      );
+      // 1. Total Employees
+      const { count: totalEmployees, error: totalError } = await supabase
+        .from('employees')
+        .select('*', { count: 'exact', head: true });
 
-      if (!response.ok) {
-        throw new Error('Failed to fetch stats');
-      }
+      if (totalError) throw totalError;
 
-      const data = await response.json();
-      setStats(data);
+      // 2. New Today
+      const today = new Date().toISOString().split('T')[0];
+      const { count: newToday, error: newError } = await supabase
+        .from('employees')
+        .select('*', { count: 'exact', head: true })
+        .gte('submitted_at', today);
+
+      if (newError) throw newError;
+
+      // 3. Pending ID Cards
+      const { count: pendingIdCards, error: pendingError } = await supabase
+        .from('employees')
+        .select('*', { count: 'exact', head: true })
+        .eq('id_card_prepared', false);
+
+      if (pendingError) throw pendingError;
+
+      // 4. Recent Employees
+      // Fetch checks with current address to show city
+      const { data: recentEmployees, error: recentError } = await supabase
+        .from('employees')
+        .select(`
+          *,
+          employee_addresses (
+            city
+          )
+        `)
+        .eq('employee_addresses.type', 'current')
+        .order('submitted_at', { ascending: false })
+        .limit(5);
+
+      if (recentError) throw recentError;
+
+      setStats({
+        totalEmployees: totalEmployees || 0,
+        newToday: newToday || 0,
+        pendingIdCards: pendingIdCards || 0,
+        recentEmployees: recentEmployees || []
+      });
     } catch (error) {
       console.error('Fetch stats error:', error);
       toast.error('Failed to load dashboard data');
@@ -127,14 +158,19 @@ export function AdminDashboard() {
                       <Users className="w-6 h-6 text-gray-600" />
                     </div>
                     <div>
-                      <p className="text-gray-900">{employee.personalIdentity?.fullName}</p>
-                      <p className="text-sm text-gray-600">{employee.address?.city}</p>
+                      <p className="text-gray-900">{employee.full_name}</p>
+                      <p className="text-sm text-gray-600">
+                        {/* Handle potential array or object structure depending on join */}
+                        {Array.isArray(employee.employee_addresses)
+                          ? employee.employee_addresses[0]?.city
+                          : employee.employee_addresses?.city}
+                      </p>
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-sm text-gray-600">{employee.employeeId}</p>
+                    <p className="text-sm text-gray-600">{employee.employee_id}</p>
                     <p className="text-sm text-gray-500">
-                      {new Date(employee.submittedAt).toLocaleDateString()}
+                      {new Date(employee.submitted_at).toLocaleDateString()}
                     </p>
                   </div>
                 </div>
