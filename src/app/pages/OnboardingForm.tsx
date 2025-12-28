@@ -1343,7 +1343,7 @@ function Step8Photograph({ photograph, preview, onFileChange }: any) {
     <div className="space-y-6">
       <div>
         <h2 className="text-xl text-gray-900 mb-2">Photo for ID and Internal Records</h2>
-        <p className="text-sm text-gray-600">Auto reject bad uploads.</p>
+        <p className="text-sm text-gray-600">Show us your best smile! Creative & casual photos welcome.</p>
       </div>
 
       <div className="flex flex-col items-center">
@@ -1364,7 +1364,7 @@ function Step8Photograph({ photograph, preview, onFileChange }: any) {
           />
           <span className="flex items-center gap-2 px-6 py-3 bg-white border border-gray-300 rounded-lg text-gray-700 hover:bg-gray-50 transition-colors">
             <Upload className="w-4 h-4" />
-            Upload Recent Photograph
+            Upload Photograph
           </span>
         </label>
 
@@ -1374,13 +1374,12 @@ function Step8Photograph({ photograph, preview, onFileChange }: any) {
       </div>
 
       <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-        <p className="text-sm text-gray-900 mb-2">Photo Requirements:</p>
+        <p className="text-sm text-gray-900 mb-2">Photo Guidelines:</p>
         <ul className="text-sm text-gray-700 space-y-1 list-disc list-inside">
-          <li>Plain background (white or light color)</li>
-          <li>Clear face, front-facing</li>
-          <li>No filters or edits</li>
-          <li>JPG or PNG format only</li>
-          <li>Maximum file size: 5MB</li>
+          <li>Casual, happy, or creative photos are perfect</li>
+          <li>Just ensure your face is clearly visible</li>
+          <li>No strict background rules - be yourself!</li>
+          <li>JPG or PNG format only (Max 5MB)</li>
         </ul>
       </div>
     </div>
