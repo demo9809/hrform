@@ -23,6 +23,7 @@ export interface Employee {
     designation?: string;
     date_of_joining?: string;
     office_location?: string;
+    probation_end_date?: string;
 }
 
 export interface EmployeeIdentity {

@@ -52,6 +52,7 @@ export function UpdateCompanyModal({ employee, isOpen, onClose, onUpdate }: Upda
         designation: employee.company?.designation || '',
         dateOfJoining: employee.company?.dateOfJoining || '',
         officeLocation: employee.company?.officeLocation || '',
+        probationEndDate: employee.company?.probation_end_date || '',
     });
 
     const handleChange = (field: string, value: string) => {
@@ -95,7 +96,8 @@ export function UpdateCompanyModal({ employee, isOpen, onClose, onUpdate }: Upda
                     department: formData.department,
                     designation: formData.designation,
                     date_of_joining: formData.dateOfJoining || null,
-                    office_location: formData.officeLocation
+                    office_location: formData.officeLocation,
+                    probation_end_date: formData.probationEndDate || null
                 })
                 .eq('id', employee.id);
 
@@ -158,6 +160,33 @@ export function UpdateCompanyModal({ employee, isOpen, onClose, onUpdate }: Upda
                             value={formData.dateOfJoining}
                             onChange={(v) => handleChange('dateOfJoining', v)}
                         />
+
+                        <div className="grid grid-cols-2 gap-4">
+                            <SelectField
+                                label="Probation Duration"
+                                value={""} // We don't need to persist duration, just use it as a helper
+                                onChange={(v) => {
+                                    if (!formData.dateOfJoining) {
+                                        toast.error('Please select Date of Joining first');
+                                        return;
+                                    }
+                                    const months = parseInt(v);
+                                    if (!isNaN(months)) {
+                                        const date = new Date(formData.dateOfJoining);
+                                        date.setMonth(date.getMonth() + months);
+                                        handleChange('probationEndDate', date.toISOString().split('T')[0]);
+                                    }
+                                }}
+                                options={["1 Month", "2 Months", "3 Months", "4 Months", "5 Months", "6 Months"]}
+                                placeholder="Auto-calc"
+                            />
+                            <InputField
+                                label="Probation End Date"
+                                type="date"
+                                value={formData.probationEndDate}
+                                onChange={(v) => handleChange('probationEndDate', v)}
+                            />
+                        </div>
                         <div className="space-y-1">
                             <label className="block text-sm font-medium text-gray-700">Work Mode</label>
                             <div className="flex gap-3">

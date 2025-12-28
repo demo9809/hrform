@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { X, Save, Building, User, MapPin, FileText } from 'lucide-react';
+import { X, Save, Building, User, MapPin, FileText, CreditCard, Phone, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
 // import { SUPABASE_URL } from '../../utils/supabase/client'; // Removing to avoid shadowing/confusion
@@ -16,6 +16,9 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('personal');
 
+    const [photoFile, setPhotoFile] = useState<File | null>(null);
+    const [photoPreview, setPhotoPreview] = useState<string | null>(employee.signedUrls?.photograph || null);
+
     // Initialize state with employee data
     const [formData, setFormData] = useState({
         personalIdentity: {
@@ -29,12 +32,26 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
 
         address: {
             currentAddress: employee.address?.currentAddress || '',
+            city: employee.address?.city || '',
+            state: employee.address?.state || '',
+            pincode: employee.address?.pincode || '',
             permanentAddress: employee.address?.permanentAddress || '',
         },
         governmentTax: {
             aadhaarNumber: employee.governmentTax?.aadhaarNumber || '',
             panNumber: employee.governmentTax?.panNumber || '',
             passportNumber: employee.governmentTax?.passportNumber || '',
+        },
+        bankDetails: {
+            accountHolderName: employee.bankDetails?.accountHolderName || '',
+            bankName: employee.bankDetails?.bankName || '',
+            accountNumber: employee.bankDetails?.accountNumber || '',
+            ifscCode: employee.bankDetails?.ifscCode || '',
+        },
+        emergencyContact: {
+            name: employee.emergencyContact?.name || '',
+            relationship: employee.emergencyContact?.relationship || '',
+            phone: employee.emergencyContact?.phone || '',
         }
     });
 
@@ -46,6 +63,27 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
                 [field]: value
             }
         }));
+    };
+
+    const handlePhotoChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const file = e.target.files?.[0];
+        if (file) {
+            if (!['image/jpeg', 'image/jpg', 'image/png'].includes(file.type)) {
+                toast.error('Only JPG or PNG files are allowed');
+                return;
+            }
+            if (file.size > 5 * 1024 * 1024) {
+                toast.error('Photo size must be less than 5MB');
+                return;
+            }
+
+            setPhotoFile(file);
+            const reader = new FileReader();
+            reader.onloadend = () => {
+                setPhotoPreview(reader.result as string);
+            };
+            reader.readAsDataURL(file);
+        }
     };
 
     const handleSubmit = async (e: React.FormEvent) => {
@@ -65,17 +103,41 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
                 return;
             }
 
+            // 0. Upload Photo if changed
+            let photoPath = null;
+            if (photoFile) {
+                const bucketName = 'make-0e23869b-employee-docs';
+                const ext = photoFile.name.split('.').pop();
+                const path = `${employee.employeeId}/photograph-${Date.now()}.${ext}`;
+
+                const { error: uploadError } = await supabase.storage
+                    .from(bucketName)
+                    .upload(path, photoFile, {
+                        contentType: photoFile.type,
+                        upsert: false
+                    });
+
+                if (uploadError) throw new Error(`Photo upload failed: ${uploadError.message}`);
+                photoPath = path;
+            }
+
             // 1. Update Personal Identity (Employees Table)
+            const employeeUpdates: any = {
+                full_name: formData.personalIdentity.fullName,
+                date_of_birth: formData.personalIdentity.dateOfBirth,
+                gender: formData.personalIdentity.gender,
+                blood_group: formData.personalIdentity.bloodGroup,
+                mobile_number: formData.personalIdentity.mobileNumber,
+                personal_email: formData.personalIdentity.personalEmail,
+            };
+
+            if (photoPath) {
+                employeeUpdates.photograph_path = photoPath;
+            }
+
             const { error: empError } = await supabase
                 .from('employees')
-                .update({
-                    full_name: formData.personalIdentity.fullName,
-                    date_of_birth: formData.personalIdentity.dateOfBirth,
-                    gender: formData.personalIdentity.gender,
-                    blood_group: formData.personalIdentity.bloodGroup,
-                    mobile_number: formData.personalIdentity.mobileNumber,
-                    personal_email: formData.personalIdentity.personalEmail,
-                })
+                .update(employeeUpdates)
                 .eq('id', employee.id);
 
             if (empError) throw empError;
@@ -98,11 +160,10 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
             const { error: currAddrError } = await supabase
                 .from('employee_addresses')
                 .update({
-                    address_line: formData.address.currentAddress
-                    // Note: City, state, etc are not in the edit modal currently? 
-                    // Looking at state init: formData.address only has currentAddress line.
-                    // If the modal form doesn't expose city/state, we update what we have.
-                    // The View shows we only have TextAreaField for address_line.
+                    address_line: formData.address.currentAddress,
+                    city: formData.address.city,
+                    state: formData.address.state,
+                    pincode: formData.address.pincode
                 })
                 .eq('employee_id', employee.id)
                 .eq('type', 'current');
@@ -119,6 +180,31 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
                 .eq('type', 'permanent');
 
             if (permAddrError) throw permAddrError;
+
+            // 4. Update Bank Details
+            const { error: bankError } = await supabase
+                .from('employee_bank_details')
+                .update({
+                    account_holder_name: formData.bankDetails.accountHolderName,
+                    bank_name: formData.bankDetails.bankName,
+                    account_number: formData.bankDetails.accountNumber,
+                    ifsc_code: formData.bankDetails.ifscCode,
+                })
+                .eq('employee_id', employee.id);
+
+            if (bankError) throw bankError;
+
+            // 5. Update Emergency Contact
+            const { error: emergencyError } = await supabase
+                .from('employee_emergency_contacts')
+                .update({
+                    name: formData.emergencyContact.name,
+                    relationship: formData.emergencyContact.relationship,
+                    phone: formData.emergencyContact.phone,
+                })
+                .eq('employee_id', employee.id);
+
+            if (emergencyError) throw emergencyError;
 
             toast.success('Employee updated successfully');
             onUpdate();
@@ -137,6 +223,8 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
         { id: 'personal', label: 'Personal', icon: User },
         { id: 'address', label: 'Address', icon: MapPin },
         { id: 'governmentTax', label: 'Legal & ID', icon: FileText },
+        { id: 'bankDetails', label: 'Bank', icon: CreditCard },
+        { id: 'emergency', label: 'Emergency', icon: Phone },
     ];
 
     return (
@@ -151,12 +239,12 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
                 </div>
 
                 {/* Tabs */}
-                <div className="flex border-b border-gray-200">
+                <div className="flex border-b border-gray-200 overflow-x-auto">
                     {tabs.map(tab => (
                         <button
                             key={tab.id}
                             onClick={() => setActiveTab(tab.id)}
-                            className={`flex-1 py-3 text-sm font-medium border-b-2 flex items-center justify-center gap-2 transition-colors ${activeTab === tab.id
+                            className={`flex-1 py-3 text-sm font-medium border-b-2 flex items-center justify-center gap-2 transition-colors min-w-[100px] ${activeTab === tab.id
                                 ? 'border-teal-600 text-teal-600 bg-teal-50'
                                 : 'border-transparent text-gray-500 hover:text-gray-700 hover:bg-gray-50'
                                 }`}
@@ -173,44 +261,76 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
 
                         {/* Personal Details Tab */}
                         {activeTab === 'personal' && (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                                <InputField
-                                    label="Full Name"
-                                    value={formData.personalIdentity.fullName}
-                                    onChange={(v) => handleChange('personalIdentity', 'fullName', v)}
-                                />
-                                <InputField
-                                    label="Date of Birth"
-                                    type="date"
-                                    value={formData.personalIdentity.dateOfBirth}
-                                    onChange={(v) => handleChange('personalIdentity', 'dateOfBirth', v)}
-                                />
-                                <SelectField
-                                    label="Gender"
-                                    value={formData.personalIdentity.gender}
-                                    onChange={(v) => handleChange('personalIdentity', 'gender', v)}
-                                    options={['Male', 'Female', 'Other']}
-                                />
-                                <SelectField
-                                    label="Blood Group"
-                                    value={formData.personalIdentity.bloodGroup}
-                                    onChange={(v) => handleChange('personalIdentity', 'bloodGroup', v)}
-                                    options={['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']}
-                                />
-                                <InputField
-                                    label="Mobile Number"
-                                    value={formData.personalIdentity.mobileNumber}
-                                    onChange={(v) => handleChange('personalIdentity', 'mobileNumber', v)}
-                                />
-                                <InputField
-                                    label="Email"
-                                    value={formData.personalIdentity.personalEmail}
-                                    onChange={(v) => handleChange('personalIdentity', 'personalEmail', v)}
-                                />
+                            <div className="space-y-6">
+                                {/* Photo Upload Section */}
+                                <div className="flex items-center gap-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+                                    <div className="relative">
+                                        <div className="w-24 h-24 rounded-full overflow-hidden border-2 border-white shadow-md bg-gray-200">
+                                            {photoPreview ? (
+                                                <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+                                            ) : (
+                                                <div className="w-full h-full flex items-center justify-center text-gray-400">
+                                                    <User className="w-12 h-12" />
+                                                </div>
+                                            )}
+                                        </div>
+                                        <label
+                                            htmlFor="photo-upload"
+                                            className="absolute bottom-0 right-0 p-1.5 bg-teal-600 text-white rounded-full cursor-pointer hover:bg-teal-700 transition-colors shadow-sm"
+                                        >
+                                            <Upload className="w-4 h-4" />
+                                            <input
+                                                id="photo-upload"
+                                                type="file"
+                                                accept="image/jpeg,image/png"
+                                                className="hidden"
+                                                onChange={handlePhotoChange}
+                                            />
+                                        </label>
+                                    </div>
+                                    <div className="flex-1">
+                                        <h3 className="text-sm font-medium text-gray-900">Profile Photo</h3>
+                                        <p className="text-xs text-gray-500 mt-1">Upload a clear photo. JPG or PNG, max 5MB.</p>
+                                    </div>
+                                </div>
+
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                    <InputField
+                                        label="Full Name"
+                                        value={formData.personalIdentity.fullName}
+                                        onChange={(v) => handleChange('personalIdentity', 'fullName', v)}
+                                    />
+                                    <InputField
+                                        label="Date of Birth"
+                                        type="date"
+                                        value={formData.personalIdentity.dateOfBirth}
+                                        onChange={(v) => handleChange('personalIdentity', 'dateOfBirth', v)}
+                                    />
+                                    <SelectField
+                                        label="Gender"
+                                        value={formData.personalIdentity.gender}
+                                        onChange={(v) => handleChange('personalIdentity', 'gender', v)}
+                                        options={['Male', 'Female', 'Other']}
+                                    />
+                                    <SelectField
+                                        label="Blood Group"
+                                        value={formData.personalIdentity.bloodGroup}
+                                        onChange={(v) => handleChange('personalIdentity', 'bloodGroup', v)}
+                                        options={['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']}
+                                    />
+                                    <InputField
+                                        label="Mobile Number"
+                                        value={formData.personalIdentity.mobileNumber}
+                                        onChange={(v) => handleChange('personalIdentity', 'mobileNumber', v)}
+                                    />
+                                    <InputField
+                                        label="Email"
+                                        value={formData.personalIdentity.personalEmail}
+                                        onChange={(v) => handleChange('personalIdentity', 'personalEmail', v)}
+                                    />
+                                </div>
                             </div>
                         )}
-
-
 
                         {/* Address Tab */}
                         {activeTab === 'address' && (
@@ -220,6 +340,23 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
                                     value={formData.address.currentAddress}
                                     onChange={(v) => handleChange('address', 'currentAddress', v)}
                                 />
+                                <div className="grid grid-cols-3 gap-4">
+                                    <InputField
+                                        label="City"
+                                        value={formData.address.city}
+                                        onChange={(v) => handleChange('address', 'city', v)}
+                                    />
+                                    <InputField
+                                        label="State"
+                                        value={formData.address.state}
+                                        onChange={(v) => handleChange('address', 'state', v)}
+                                    />
+                                    <InputField
+                                        label="Pincode"
+                                        value={formData.address.pincode}
+                                        onChange={(v) => handleChange('address', 'pincode', v)}
+                                    />
+                                </div>
                                 <TextAreaField
                                     label="Permanent Address"
                                     value={formData.address.permanentAddress}
@@ -245,6 +382,53 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
                                     label="Passport Number"
                                     value={formData.governmentTax.passportNumber}
                                     onChange={(v) => handleChange('governmentTax', 'passportNumber', v)}
+                                />
+                            </div>
+                        )}
+
+                        {/* Bank Details Tab */}
+                        {activeTab === 'bankDetails' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <InputField
+                                    label="Account Holder Name"
+                                    value={formData.bankDetails.accountHolderName}
+                                    onChange={(v) => handleChange('bankDetails', 'accountHolderName', v)}
+                                />
+                                <InputField
+                                    label="Bank Name"
+                                    value={formData.bankDetails.bankName}
+                                    onChange={(v) => handleChange('bankDetails', 'bankName', v)}
+                                />
+                                <InputField
+                                    label="Account Number"
+                                    value={formData.bankDetails.accountNumber}
+                                    onChange={(v) => handleChange('bankDetails', 'accountNumber', v)}
+                                />
+                                <InputField
+                                    label="IFSC Code"
+                                    value={formData.bankDetails.ifscCode}
+                                    onChange={(v) => handleChange('bankDetails', 'ifscCode', v)}
+                                />
+                            </div>
+                        )}
+
+                        {/* Emergency Contact Tab */}
+                        {activeTab === 'emergency' && (
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                                <InputField
+                                    label="Contact Name"
+                                    value={formData.emergencyContact.name}
+                                    onChange={(v) => handleChange('emergencyContact', 'name', v)}
+                                />
+                                <InputField
+                                    label="Relationship"
+                                    value={formData.emergencyContact.relationship}
+                                    onChange={(v) => handleChange('emergencyContact', 'relationship', v)}
+                                />
+                                <InputField
+                                    label="Phone Number"
+                                    value={formData.emergencyContact.phone}
+                                    onChange={(v) => handleChange('emergencyContact', 'phone', v)}
                                 />
                             </div>
                         )}

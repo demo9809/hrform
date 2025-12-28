@@ -190,6 +190,7 @@ export function EmployeeDetail() {
           designation: data.designation,
           dateOfJoining: data.date_of_joining,
           officeLocation: data.office_location,
+          probationEndDate: data.probation_end_date,
         },
 
         signedUrls
@@ -361,6 +362,7 @@ export function EmployeeDetail() {
           ['Department', employee.company?.department || 'N/A'],
           ['Designation', employee.company?.designation || 'N/A'],
           ['Date of Joining', formatDate(employee.company?.dateOfJoining)],
+          ['Probation End Date', formatDate(employee.company?.probationEndDate)],
           ['Work Mode', employee.company?.officeLocation || 'N/A'],
         ],
         theme: 'grid',
@@ -684,6 +686,7 @@ export function EmployeeDetail() {
                 <InfoItem label="Department" value={employee.company?.department} />
                 <InfoItem label="Designation" value={employee.company?.designation} />
                 <InfoItem label="Date of Joining" value={formatDate(employee.company?.dateOfJoining)} />
+                <InfoItem label="Probation End Date" value={formatDate(employee.company?.probationEndDate)} />
                 <InfoItem label="Work Mode" value={employee.company?.officeLocation} />
               </div>
             </SectionCard>
