@@ -39,6 +39,10 @@ const ASSET_CATEGORIES = [
     'Tablet',
     'Adapter',
     'CPU',
+    'Camera',
+    'Camera Accessories',
+    'Mic',
+    'Light',
     'Other',
 ];
 
