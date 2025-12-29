@@ -58,7 +58,9 @@ export function EditAssetModal({ isOpen, onClose, onSuccess, asset }: EditAssetM
             await AssetService.updateAsset(asset.id, {
                 ...data,
                 status: data.status as any,
-                purchase_cost: data.purchase_cost ? Number(data.purchase_cost) : undefined,
+                purchase_cost: data.purchase_cost !== undefined && data.purchase_cost !== null ? Number(data.purchase_cost) : undefined,
+                purchase_date: (data.purchase_date || null) as any,
+                warranty_expiry_date: (data.warranty_expiry_date || null) as any,
             });
             toast.success('Asset updated successfully');
             onSuccess();
