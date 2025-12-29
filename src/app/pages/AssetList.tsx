@@ -247,14 +247,14 @@ export function AssetList() {
                             placeholder="Search by code, name, or serial..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
-                            className="pl-10 bg-white"
+                            className="pl-10 bg-white border border-gray-300 focus:border-teal-500 transition-colors"
                         />
                     </div>
 
                     <div className="flex items-center gap-2 w-full md:w-auto">
                         <Filter className="w-4 h-4 text-gray-500" />
                         <Select value={statusFilter} onValueChange={setStatusFilter}>
-                            <SelectTrigger className="w-[180px] bg-white">
+                            <SelectTrigger className="w-[180px] bg-white border border-gray-300 focus:ring-teal-500">
                                 <SelectValue placeholder="Filter by Status" />
                             </SelectTrigger>
                             <SelectContent>
