@@ -59,7 +59,11 @@ export function AddAssetModal({ isOpen, onClose, onSuccess }: AddAssetModalProps
         }
     }, [isOpen]);
 
-    const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<AssetFormValues>();
+    const { register, handleSubmit, reset, setValue, formState: { errors } } = useForm<AssetFormValues>({
+        defaultValues: {
+            assigned_to: 'HR'
+        }
+    });
 
     const onSubmit = async (data: AssetFormValues) => {
         setIsLoading(true);
@@ -144,7 +148,7 @@ export function AddAssetModal({ isOpen, onClose, onSuccess }: AddAssetModalProps
 
                         <div className="space-y-2">
                             <Label htmlFor="assigned_to">Assign To *</Label>
-                            <Select onValueChange={(val) => setValue('assigned_to', val, { shouldValidate: true })}>
+                            <Select defaultValue="HR" onValueChange={(val) => setValue('assigned_to', val, { shouldValidate: true })}>
                                 <SelectTrigger>
                                     <SelectValue placeholder="Select Assignee" />
                                 </SelectTrigger>
