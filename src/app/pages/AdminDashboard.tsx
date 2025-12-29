@@ -10,6 +10,7 @@ interface DashboardStats {
   upcomingBirthdays: any[];
   upcomingAnniversaries: any[];
   probationEndingSoon: any[];
+  upcomingIncrements: any[];
 }
 
 export function AdminDashboard() {
@@ -51,6 +52,7 @@ export function AdminDashboard() {
       const upcomingBirthdays: any[] = [];
       const upcomingAnniversaries: any[] = [];
       const probationEndingSoon: any[] = [];
+      const upcomingIncrements: any[] = [];
       const todayDate = new Date();
       const next30Days = new Date();
       next30Days.setDate(todayDate.getDate() + 30);
@@ -92,13 +94,23 @@ export function AdminDashboard() {
             probationEndingSoon.push(emp);
           }
         }
+
+        // Increment Checker
+        // Exclude Interns and those with Resignation Date set
+        if (emp.job_type !== 'Intern' && !emp.resignation_date && emp.next_increment_date) {
+          const incDate = new Date(emp.next_increment_date);
+          if (incDate >= todayDate && incDate <= next30Days) {
+            upcomingIncrements.push(emp);
+          }
+        }
       });
 
       setStats({
         totalEmployees: totalEmployees || 0,
         upcomingBirthdays,
         upcomingAnniversaries,
-        probationEndingSoon
+        probationEndingSoon,
+        upcomingIncrements
       });
     } catch (error) {
       console.error('Fetch stats error:', error);
@@ -124,15 +136,7 @@ export function AdminDashboard() {
   });
 
   return (
-    <AdminLayout title="" description="">
-      <div className="mb-8">
-        <h1 className="text-2xl font-bold text-gray-900">Dashboard</h1>
-        <p className="text-gray-500 mt-1 flex items-center gap-2">
-          <Calendar className="w-4 h-4" />
-          {currentDate}
-        </p>
-      </div>
-
+    <AdminLayout title="Dashboard" description={currentDate}>
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
 
         {/* Hero Card: Total Employees */}
@@ -187,6 +191,15 @@ export function AdminDashboard() {
           emptyText="No probations ending soon"
         />
 
+        {/* Reminders: Increments */}
+        <ReminderCard
+          title="Upcoming Increments"
+          icon={<Award className="w-5 h-5 text-green-500" />}
+          items={stats?.upcomingIncrements || []}
+          type="increment"
+          emptyText="No increments due nearby"
+        />
+
       </div>
     </AdminLayout>
   );
@@ -199,7 +212,8 @@ function ReminderCard({ title, icon, items, type, emptyText }: any) {
       <div className="flex items-center justify-between mb-5">
         <div className="flex items-center gap-3">
           <div className={`p-2 rounded-lg ${type === 'birthday' ? 'bg-pink-50' :
-              type === 'anniversary' ? 'bg-amber-50' : 'bg-orange-50'
+            type === 'anniversary' ? 'bg-amber-50' :
+              type === 'increment' ? 'bg-green-50' : 'bg-orange-50'
             }`}>
             {icon}
           </div>
@@ -225,7 +239,8 @@ function ReminderCard({ title, icon, items, type, emptyText }: any) {
               </div>
               <div className="text-right shrink-0">
                 <p className={`text-xs font-medium px-2 py-1 rounded-md ${type === 'birthday' ? 'text-pink-700 bg-pink-50' :
-                    type === 'anniversary' ? 'text-amber-700 bg-amber-50' : 'text-orange-700 bg-orange-50'
+                  type === 'anniversary' ? 'text-amber-700 bg-amber-50' :
+                    type === 'increment' ? 'text-green-700 bg-green-50' : 'text-orange-700 bg-orange-50'
                   }`}>
                   {getDateLabel(emp, type)}
                 </p>
@@ -252,7 +267,8 @@ function getDateLabel(emp: any, type: string) {
   const dateStr =
     type === 'birthday' ? emp.date_of_birth :
       type === 'anniversary' ? emp.date_of_joining :
-        emp.probation_end_date;
+        type === 'increment' ? emp.next_increment_date :
+          emp.probation_end_date;
 
   if (!dateStr) return 'N/A';
 

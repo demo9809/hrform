@@ -24,6 +24,29 @@ export interface Employee {
     date_of_joining?: string;
     office_location?: string;
     probation_end_date?: string;
+    // New Extended Fields
+    resignation_date?: string;
+    job_type?: 'Permanent' | 'Temporary' | 'Intern' | 'Trainee';
+    current_salary?: number;
+    salary_effective_date?: string;
+    last_increment_date?: string;
+    increment_cycle?: 'Yearly' | 'Custom';
+    stipend_amount?: number;
+    stipend_start_date?: string;
+    stipend_end_date?: string;
+    is_new_joinee?: boolean;
+    first_increment_duration?: '6 months' | '12 months';
+    next_increment_date?: string;
+}
+
+export interface IncrementHistory {
+    id: string;
+    employee_id: string;
+    old_salary: number;
+    new_salary: number;
+    increment_date: string;
+    changed_by?: string;
+    created_at: string;
 }
 
 export interface EmployeeIdentity {
@@ -100,3 +123,41 @@ export interface FullEmployeeProfile extends Employee {
         [key: string]: any;
     };
 }
+
+export type AssetStatus = 'Available' | 'Assigned' | 'Returned' | 'Damaged' | 'Lost' | 'Retired';
+
+export interface Asset {
+    id: string;
+    asset_code: string;
+    name: string;
+    category: string;
+    brand?: string;
+    model?: string;
+    serial_number?: string;
+    purchase_date?: string;
+    purchase_cost?: number;
+    warranty_expiry_date?: string;
+    condition?: string;
+    status: AssetStatus;
+    created_at: string;
+    updated_at: string;
+    assigned_to?: string | null; // For direct UI convenience, though strictly in assignments
+    // Helper to join current assignment
+    current_assignment?: AssetAssignment;
+}
+
+export interface AssetAssignment {
+    id: string;
+    asset_id: string;
+    employee_id: string;
+    assigned_by?: string;
+    assigned_at: string;
+    returned_at?: string;
+    condition_on_assignment?: string;
+    condition_on_return?: string;
+    remarks?: string;
+    // Helper for joins
+    employee?: Employee;
+    asset?: Asset;
+}
+

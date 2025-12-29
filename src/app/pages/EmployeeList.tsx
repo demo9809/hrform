@@ -179,7 +179,7 @@ export function EmployeeList() {
       description="View and manage all employee records"
       actions={
         <button
-          onClick={() => navigate('/onboard')}
+          onClick={() => window.open('/', '_blank')}
           className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition"
         >
           <Users className="w-4 h-4" />

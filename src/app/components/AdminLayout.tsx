@@ -5,7 +5,8 @@ import {
     LayoutDashboard,
     LogOut,
     Menu,
-    X
+    X,
+    ArrowLeft
 } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 
@@ -14,9 +15,10 @@ interface AdminLayoutProps {
     title: string;
     description?: string;
     actions?: React.ReactNode;
+    onBack?: () => void;
 }
 
-export function AdminLayout({ children, title, description, actions }: AdminLayoutProps) {
+export function AdminLayout({ children, title, description, actions, onBack }: AdminLayoutProps) {
     const navigate = useNavigate();
     const location = useLocation();
     const { user, signOut } = useAuth();
@@ -30,6 +32,7 @@ export function AdminLayout({ children, title, description, actions }: AdminLayo
     const menuItems = [
         { icon: LayoutDashboard, label: 'Dashboard', path: '/admin/dashboard' },
         { icon: Users, label: 'Employees', path: '/admin/employees' },
+        { icon: Menu, label: 'Assets', path: '/admin/assets' },
     ];
 
     return (
@@ -110,14 +113,24 @@ export function AdminLayout({ children, title, description, actions }: AdminLayo
                 </div>
             </div>
 
-            {/* Main Content */}
-            <div className="lg:ml-64 p-4 md:p-8">
-                {/* Page Header */}
-                <div className="mb-8">
+            <div className="lg:ml-64 min-h-screen flex flex-col">
+                {/* Top Bar / Page Header */}
+                <div className="bg-white border-b border-gray-200 px-6 py-6 sticky top-0 z-10">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-                        <div>
-                            <h1 className="text-2xl md:text-3xl text-gray-900 mb-2">{title}</h1>
-                            {description && <p className="text-gray-600">{description}</p>}
+                        <div className="flex items-center gap-4">
+                            {onBack && (
+                                <button
+                                    onClick={onBack}
+                                    className="p-2 -ml-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
+                                    title="Go Back"
+                                >
+                                    <ArrowLeft className="w-6 h-6" />
+                                </button>
+                            )}
+                            <div>
+                                <h1 className="text-xl md:text-2xl font-semibold text-gray-900">{title}</h1>
+                                {description && <p className="text-sm text-gray-500 mt-1">{description}</p>}
+                            </div>
                         </div>
                         {actions && (
                             <div className="flex items-center gap-3">
@@ -127,7 +140,10 @@ export function AdminLayout({ children, title, description, actions }: AdminLayo
                     </div>
                 </div>
 
-                {children}
+                {/* Page Content */}
+                <div className="flex-1 p-4 md:p-8 bg-gray-50">
+                    {children}
+                </div>
             </div>
         </div>
     );

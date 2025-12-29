@@ -1,7 +1,8 @@
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { X, Save, Building, User, MapPin, FileText, CreditCard, Phone, Upload } from 'lucide-react';
 import { toast } from 'sonner';
 import { useAuth } from '../contexts/AuthContext';
+import { useEnterNavigation } from '../../hooks/useEnterNavigation';
 // import { SUPABASE_URL } from '../../utils/supabase/client'; // Removing to avoid shadowing/confusion
 
 interface EditEmployeeModalProps {
@@ -13,6 +14,9 @@ interface EditEmployeeModalProps {
 
 export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditEmployeeModalProps) {
     const { user } = useAuth();
+    const modalRef = useRef<HTMLDivElement>(null);
+    useEnterNavigation(modalRef);
+
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState('personal');
 
@@ -229,7 +233,10 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
 
     return (
         <div className="fixed inset-0 bg-black/30 backdrop-blur-sm flex items-center justify-center z-50 p-4">
-            <div className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col">
+            <div
+                ref={modalRef}
+                className="bg-white rounded-xl shadow-xl w-full max-w-2xl max-h-[90vh] overflow-hidden flex flex-col"
+            >
                 {/* Header */}
                 <div className="px-6 py-4 border-b border-gray-200 flex justify-between items-center bg-gray-50">
                     <h2 className="text-xl font-semibold text-gray-800">Edit Employee Details</h2>

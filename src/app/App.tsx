@@ -6,6 +6,8 @@ import { AdminSignup } from './pages/AdminSignup';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { EmployeeList } from './pages/EmployeeList';
 import { EmployeeDetail } from './pages/EmployeeDetail';
+import { AssetList } from './pages/AssetList';
+import { AssetDetail } from './pages/AssetDetail';
 import { AuthProvider, useAuth } from './contexts/AuthContext';
 
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -55,6 +57,22 @@ export default function App() {
             element={
               <ProtectedRoute>
                 <EmployeeDetail />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/assets"
+            element={
+              <ProtectedRoute>
+                <AssetList />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/admin/assets/:id"
+            element={
+              <ProtectedRoute>
+                <AssetDetail />
               </ProtectedRoute>
             }
           />

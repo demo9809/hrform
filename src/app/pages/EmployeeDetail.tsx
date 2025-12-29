@@ -20,7 +20,13 @@ import {
   Globe,
   CreditCard,
   User,
-  Clock
+  Clock,
+  Monitor,
+  History as HistoryIcon,
+  Laptop,
+  Smartphone,
+  HardDrive,
+  MousePointer
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -28,6 +34,10 @@ import { EditEmployeeModal } from '../components/EditEmployeeModal';
 import { UpdateCompanyModal } from '../components/UpdateCompanyModal';
 import { useAuth, supabase } from '../contexts/AuthContext';
 import { SUPABASE_URL } from '../../utils/supabase/client';
+import { AssetService } from '../../utils/assetService';
+import { AssetAssignment } from '../../types/database';
+import { Badge } from '../components/ui/badge';
+import { AdminLayout } from '../components/AdminLayout';
 
 export function EmployeeDetail() {
   const { id } = useParams();
@@ -38,6 +48,8 @@ export function EmployeeDetail() {
   const [markingPrepared, setMarkingPrepared] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
+  const [assignedAssets, setAssignedAssets] = useState<AssetAssignment[]>([]);
+  const [incrementHistory, setIncrementHistory] = useState<any[]>([]);
 
   // Helper to format date as DD-MM-YYYY
   const formatDate = (dateString: string | null | undefined) => {
@@ -191,12 +203,36 @@ export function EmployeeDetail() {
           dateOfJoining: data.date_of_joining,
           officeLocation: data.office_location,
           probationEndDate: data.probation_end_date,
+          // Extended
+          resignationDate: data.resignation_date,
+          jobType: data.job_type,
+          currentSalary: data.current_salary,
+          stipendAmount: data.stipend_amount,
+          stipendEndDate: data.stipend_end_date,
+          nextIncrementDate: data.next_increment_date,
+          isNewJoinee: data.is_new_joinee,
+          firstIncrementDuration: data.first_increment_duration,
+          lastIncrementDate: data.last_increment_date
         },
 
         signedUrls
       };
 
       setEmployee(mappedEmployee);
+
+      // Fetch assigned assets
+      if (id) {
+        const assets = await AssetService.getEmployeeAssets(id);
+        setAssignedAssets(assets || []);
+
+        // Fetch Increment History
+        const { data: increments } = await supabase
+          .from('increment_history')
+          .select('*')
+          .eq('employee_id', id)
+          .order('increment_date', { ascending: false });
+        setIncrementHistory(increments || []);
+      }
 
     } catch (error) {
       console.error('Fetch employee error:', error);
@@ -284,6 +320,15 @@ export function EmployeeDetail() {
     });
   };
 
+  const getCategoryIcon = (category: string) => {
+    switch (category?.toLowerCase()) {
+      case 'laptop': return <Laptop className="w-5 h-5 text-gray-500" />;
+      case 'mobile': return <Smartphone className="w-5 h-5 text-gray-500" />;
+      case 'peripheral': return <MousePointer className="w-5 h-5 text-gray-500" />;
+      default: return <HardDrive className="w-5 h-5 text-gray-500" />;
+    }
+  };
+
   const handleExportPDF = async () => {
     if (!employee) return;
     const doc = new jsPDF();
@@ -361,9 +406,33 @@ export function EmployeeDetail() {
         body: [
           ['Department', employee.company?.department || 'N/A'],
           ['Designation', employee.company?.designation || 'N/A'],
+          ['Job Type', employee.company?.jobType || 'Permanent'],
           ['Date of Joining', formatDate(employee.company?.dateOfJoining)],
           ['Probation End Date', formatDate(employee.company?.probationEndDate)],
           ['Work Mode', employee.company?.officeLocation || 'N/A'],
+          ['Work Email', employee.company?.workEmail || '-'],
+          ['Resignation Date', employee.company?.resignationDate ? formatDate(employee.company.resignationDate) : '-'],
+        ],
+        theme: 'grid',
+        headStyles: { fillColor: [244, 122, 94], textColor: 255 },
+        columnStyles: { 0: { fontStyle: 'bold', cellWidth: 50, textColor: 50 } },
+      });
+
+      finalY = (doc as any).lastAutoTable.finalY + 10;
+
+      // 4.5 Compensation (New Table)
+      const salaryLabel = employee.company?.jobType === 'Intern' ? 'Monthly Stipend' : 'Current Salary';
+      const salaryValue = employee.company?.jobType === 'Intern'
+        ? (employee.company?.stipendAmount ? `Rs. ${employee.company.stipendAmount}` : '-')
+        : (employee.company?.currentSalary ? `Rs. ${employee.company.currentSalary}` : '-');
+
+      autoTable(doc, {
+        startY: finalY,
+        head: [['Compensation & Increment', '']],
+        body: [
+          [salaryLabel, salaryValue],
+          ['Last Increment Date', employee.company?.lastIncrementDate ? formatDate(employee.company.lastIncrementDate) : '-'],
+          ['Next Increment Due', employee.company?.nextIncrementDate ? formatDate(employee.company.nextIncrementDate) : '-'],
         ],
         theme: 'grid',
         headStyles: { fillColor: [244, 122, 94], textColor: 255 },
@@ -523,46 +592,35 @@ export function EmployeeDetail() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50 pb-12">
-      {/* Header */}
-      <div className="bg-white border-b border-gray-200 sticky top-0 z-10">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate('/admin/employees')}
-                className="p-2 -ml-2 text-gray-500 hover:text-gray-700 hover:bg-gray-100 rounded-lg transition-colors"
-              >
-                <ArrowLeft className="w-5 h-5" />
-              </button>
-              <h1 className="text-xl font-semibold text-gray-900">Employee Profile</h1>
-            </div>
-            <div className="flex items-center gap-3">
-              <button
-                onClick={() => setIsCompanyModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 transition-colors"
-              >
-                <Briefcase className="w-4 h-4" />
-                Job Details
-              </button>
-              <button
-                onClick={() => setIsEditModalOpen(true)}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
-              >
-                <Edit className="w-4 h-4" />
-                Edit Profile
-              </button>
-              <button
-                onClick={handleExportPDF}
-                className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors shadow-sm"
-              >
-                <FileDown className="w-4 h-4" />
-                Export PDF
-              </button>
-            </div>
-          </div>
+    <AdminLayout
+      title="Employee Profile"
+      onBack={() => navigate('/admin/employees')}
+      actions={
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => setIsCompanyModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-teal-700 bg-teal-50 border border-teal-200 rounded-lg hover:bg-teal-100 transition-colors"
+          >
+            <Briefcase className="w-4 h-4" />
+            Job Details
+          </button>
+          <button
+            onClick={() => setIsEditModalOpen(true)}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 transition-colors"
+          >
+            <Edit className="w-4 h-4" />
+            Edit Profile
+          </button>
+          <button
+            onClick={handleExportPDF}
+            className="flex items-center gap-2 px-4 py-2 text-sm font-medium text-white bg-teal-600 rounded-lg hover:bg-teal-700 transition-colors shadow-sm"
+          >
+            <FileDown className="w-4 h-4" />
+            Export PDF
+          </button>
         </div>
-      </div>
+      }
+    >
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
@@ -685,11 +743,55 @@ export function EmployeeDetail() {
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <InfoItem label="Department" value={employee.company?.department} />
                 <InfoItem label="Designation" value={employee.company?.designation} />
+                <InfoItem label="Job Type" value={employee.company?.jobType || 'Permanent'} />
                 <InfoItem label="Date of Joining" value={formatDate(employee.company?.dateOfJoining)} />
                 <InfoItem label="Probation End Date" value={formatDate(employee.company?.probationEndDate)} />
                 <InfoItem label="Work Mode" value={employee.company?.officeLocation} />
+
+                {employee.company?.resignationDate && (
+                  <div className="md:col-span-2 bg-red-50 p-3 rounded-lg border border-red-100">
+                    <InfoItem label="Resignation Date" value={formatDate(employee.company?.resignationDate)} className="text-red-700" />
+                  </div>
+                )}
+
+                {employee.company?.jobType === 'Intern' ? (
+                  <InfoItem label="Monthly Stipend" value={employee.company?.stipendAmount ? `₹${employee.company?.stipendAmount}` : 'No Stipend'} />
+                ) : (
+                  <>
+                    <InfoItem label="Current Salary" value={employee.company?.currentSalary ? `₹${employee.company?.currentSalary}` : 'N/A'} />
+                    <InfoItem label="Next Increment Due" value={formatDate(employee.company?.nextIncrementDate)} />
+                  </>
+                )}
               </div>
             </SectionCard>
+
+            {/* Increment History Section */}
+            {incrementHistory.length > 0 && (
+              <SectionCard title="Increment History" icon={<Clock className="w-5 h-5" />}>
+                <div className="overflow-x-auto">
+                  <table className="min-w-full text-sm text-left">
+                    <thead className="bg-gray-50 text-gray-500 font-medium">
+                      <tr>
+                        <th className="px-4 py-2">Date</th>
+                        <th className="px-4 py-2">Old Salary</th>
+                        <th className="px-4 py-2">New Salary</th>
+                        <th className="px-4 py-2">Changed By</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {incrementHistory.map((inc: any) => (
+                        <tr key={inc.id}>
+                          <td className="px-4 py-2 text-gray-900">{formatDate(inc.increment_date)}</td>
+                          <td className="px-4 py-2 text-gray-600">₹{inc.old_salary}</td>
+                          <td className="px-4 py-2 text-green-600 font-medium">₹{inc.new_salary}</td>
+                          <td className="px-4 py-2 text-gray-500">{inc.changed_by || 'System'}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </SectionCard>
+            )}
 
             {/* Personal Details */}
             <SectionCard title="Personal Information" icon={<User className="w-5 h-5" />}>
@@ -712,6 +814,72 @@ export function EmployeeDetail() {
                 <InfoItem label="Current Address" value={employee.address?.currentAddress} fullWidth />
                 <div className="border-t border-gray-100"></div>
                 <InfoItem label="Permanent Address" value={employee.address?.permanentAddress} fullWidth />
+              </div>
+            </SectionCard>
+
+
+            {/* Assigned Assets & History */}
+            <SectionCard title="Asset Management" icon={<Monitor className="w-5 h-5" />}>
+              <div className="space-y-6">
+                {/* Active Assets */}
+                <div>
+                  <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                    <span className="w-2 h-2 rounded-full bg-green-500"></span>
+                    Currently Assigned
+                  </h4>
+                  {assignedAssets.filter(a => !a.returned_at).length > 0 ? (
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      {assignedAssets.filter(a => !a.returned_at).map((assignment) => (
+                        <div key={assignment.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 hover:border-teal-100 hover:bg-teal-50 transition-colors">
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              {getCategoryIcon(assignment.asset?.category || '')}
+                              <span className="font-medium text-gray-900">{assignment.asset?.name || 'Unknown Asset'}</span>
+                              <span className="text-xs bg-blue-100 text-blue-800 px-2 py-0.5 rounded-full">{assignment.asset?.asset_code}</span>
+                            </div>
+                            <p className="text-xs text-gray-500 pl-8">Assigned: {formatDate(assignment.assigned_at)}</p>
+                          </div>
+                          <a
+                            href={`/admin/assets/${assignment.asset_id}`}
+                            className="text-sm font-medium text-teal-600 hover:text-teal-700 hover:underline"
+                          >
+                            View
+                          </a>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <p className="text-sm text-gray-500 italic pl-4 border-l-2 border-gray-200">No assets currently assigned.</p>
+                  )}
+                </div>
+
+                {/* Returned Assets History */}
+                {assignedAssets.filter(a => a.returned_at).length > 0 && (
+                  <div>
+                    <h4 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2 pt-4 border-t border-gray-100">
+                      <span className="w-2 h-2 rounded-full bg-gray-400"></span>
+                      Return History
+                    </h4>
+                    <div className="space-y-3">
+                      {assignedAssets.filter(a => a.returned_at).map((assignment) => (
+                        <div key={assignment.id} className="flex items-center justify-between p-3 bg-white rounded-lg border border-gray-200 opacity-75">
+                          <div className="flex items-center gap-4">
+                            <div className="p-2 bg-gray-100 rounded-lg text-gray-500">
+                              <HistoryIcon className="w-4 h-4" />
+                            </div>
+                            <div>
+                              <p className="text-sm font-medium text-gray-700">{assignment.asset?.name} <span className="text-xs text-gray-400">({assignment.asset?.asset_code})</span></p>
+                              <p className="text-xs text-gray-500">
+                                Returned: {formatDate(assignment.returned_at)} • Used for {Math.ceil((new Date(assignment.returned_at!).getTime() - new Date(assignment.assigned_at).getTime()) / (1000 * 60 * 60 * 24))} days
+                              </p>
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="text-gray-500 border-gray-200">Returned</Badge>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
               </div>
             </SectionCard>
 
@@ -872,7 +1040,7 @@ export function EmployeeDetail() {
           onUpdate={fetchEmployee}
         />
       )}
-    </div>
+    </AdminLayout>
   );
 }
 
@@ -894,9 +1062,9 @@ function SectionCard({ title, icon, children }: { title: string; icon: React.Rea
   )
 }
 
-function InfoItem({ label, value, icon, fullWidth = false }: { label: string; value: string; icon?: React.ReactNode; fullWidth?: boolean }) {
+function InfoItem({ label, value, icon, fullWidth = false, className = '' }: { label: string; value: string; icon?: React.ReactNode; fullWidth?: boolean; className?: string }) {
   return (
-    <div className={fullWidth ? 'w-full' : ''}>
+    <div className={`${fullWidth ? 'w-full' : ''} ${className}`}>
       <p className="text-xs font-medium text-gray-500 uppercase tracking-wide mb-1 opacity-80">{label}</p>
       <div className="flex items-center gap-2 text-sm text-gray-900 font-medium">
         {icon}
