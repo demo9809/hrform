@@ -37,6 +37,8 @@ const ASSET_CATEGORIES = [
     'Charger',
     'Phone',
     'Tablet',
+    'Adapter',
+    'CPU',
     'Other',
 ];
 

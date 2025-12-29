@@ -4,7 +4,7 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { Plus, Search, Filter, Monitor, History as HistoryIcon, Download, Trash2 } from 'lucide-react';
+import { Plus, Search, Filter, Monitor, History as HistoryIcon, Download, Trash2, Cpu, Plug } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -85,6 +85,8 @@ export function AssetList() {
         if (cat.includes('laptop') || cat.includes('computer') || cat.includes('mac')) return <Monitor className="w-4 h-4" />;
         if (cat.includes('phone') || cat.includes('mobile')) return <div className="w-4 h-4"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="14" height="20" x="5" y="2" rx="2" ry="2" /><path d="M12 18h.01" /></svg></div>;
         if (cat.includes('keyboard') || cat.includes('mouse')) return <div className="w-4 h-4"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect width="20" height="12" x="2" y="6" rx="2" ry="2" /><path d="M6 18h12" /></svg></div>;
+        if (cat.includes('cpu') || cat.includes('processor')) return <Cpu className="w-4 h-4" />;
+        if (cat.includes('adapter') || cat.includes('charger') || cat.includes('plug')) return <Plug className="w-4 h-4" />;
         return <div className="w-4 h-4"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" /><polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" x2="12" y1="22.08" y2="12" /></svg></div>;
     };
 
