@@ -30,7 +30,7 @@ interface AssetFormValues {
 }
 
 const ASSET_CATEGORIES = [
-    'Laptop', 'Monitor', 'Mouse', 'Keyboard', 'Headphones', 'Charger', 'Phone', 'Tablet', 'Other',
+    'Laptop', 'Monitor', 'Mouse', 'Keyboard', 'Headphones', 'Charger', 'Phone', 'Tablet', 'Adapter', 'CPU', 'Other',
 ];
 
 export function EditAssetModal({ isOpen, onClose, onSuccess, asset }: EditAssetModalProps) {
@@ -57,6 +57,7 @@ export function EditAssetModal({ isOpen, onClose, onSuccess, asset }: EditAssetM
         try {
             await AssetService.updateAsset(asset.id, {
                 ...data,
+                status: data.status as any,
                 purchase_cost: data.purchase_cost ? Number(data.purchase_cost) : undefined,
             });
             toast.success('Asset updated successfully');
