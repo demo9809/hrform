@@ -27,11 +27,8 @@ export function AssetList() {
     const fetchAssets = async () => {
         setLoading(true);
         try {
-            const filters: any = {};
-            if (statusFilter && statusFilter !== 'all') filters.status = statusFilter;
-            if (searchTerm) filters.search = searchTerm;
-
-            const data = await AssetService.fetchAssets(filters);
+            // Fetch ALL assets to calculate stats content locally
+            const data = await AssetService.fetchAssets({});
             setAssets(data || []);
         } catch (error) {
             console.error('Error fetching assets:', error);
@@ -40,13 +37,36 @@ export function AssetList() {
         }
     };
 
+    // Client-side filtering
+    const filteredAssets = assets.filter(asset => {
+        const matchesStatus = statusFilter === 'all' || asset.status === statusFilter;
+        const searchLower = searchTerm.toLowerCase();
+        const matchesSearch =
+            asset.name.toLowerCase().includes(searchLower) ||
+            asset.asset_code.toLowerCase().includes(searchLower) ||
+            (asset.serial_number || '').toLowerCase().includes(searchLower);
+
+        return matchesStatus && matchesSearch;
+    });
+
+    // Calculate Counts by Category
+    const categoryCounts = assets.reduce((acc, asset) => {
+        const cat = asset.category || 'Other';
+        acc[cat] = (acc[cat] || 0) + 1;
+        return acc;
+    }, {} as Record<string, number>);
+
+    // Calculate Status Counts
+    const statusCounts = {
+        total: assets.length,
+        assigned: assets.filter(a => a.status === 'Assigned').length,
+        available: assets.filter(a => a.status === 'Available').length,
+        maintenance: assets.filter(a => a.status === 'Damaged' || a.status === 'Retired').length
+    };
+
     useEffect(() => {
-        // Debounce search
-        const timer = setTimeout(() => {
-            fetchAssets();
-        }, 300);
-        return () => clearTimeout(timer);
-    }, [searchTerm, statusFilter]);
+        fetchAssets();
+    }, []);
 
     const getStatusColor = (status: string) => {
         switch (status) {
@@ -187,6 +207,33 @@ export function AssetList() {
             }
         >
             <div className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden flex flex-col h-full">
+                {/* Dashboard Stats */}
+                <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 p-4 border-b border-gray-100 bg-gray-50/30">
+                    {/* Summary Card */}
+                    <div className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col justify-between">
+                        <span className="text-xs text-gray-500 font-medium uppercase">Total Assets</span>
+                        <div className="flex justify-between items-end">
+                            <span className="text-2xl font-bold text-gray-900">{statusCounts.total}</span>
+                            <div className="p-1.5 bg-gray-100 rounded-md">
+                                <Monitor className="w-4 h-4 text-gray-600" />
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* Dynamic Category Cards */}
+                    {Object.entries(categoryCounts).map(([cat, count]) => (
+                        <div key={cat} className="bg-white p-3 rounded-lg border border-gray-200 shadow-sm flex flex-col justify-between">
+                            <span className="text-xs text-gray-500 font-medium uppercase truncate" title={cat}>{cat}</span>
+                            <div className="flex justify-between items-end">
+                                <span className="text-2xl font-bold text-gray-900">{count}</span>
+                                <div className="p-1.5 bg-teal-50 rounded-md text-teal-600">
+                                    {getCategoryIcon(cat)}
+                                </div>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+
                 {/* Filters */}
                 <div className="p-4 border-b border-gray-200 bg-gray-50/50 flex flex-col md:flex-row gap-4 justify-between items-center">
                     <div className="relative w-full md:w-96">
@@ -240,14 +287,14 @@ export function AssetList() {
                                         </div>
                                     </TableCell>
                                 </TableRow>
-                            ) : assets.length === 0 ? (
+                            ) : filteredAssets.length === 0 ? (
                                 <TableRow>
                                     <TableCell colSpan={5} className="text-center py-12 text-gray-500">
-                                        No assets found.
+                                        No assets found matching your filters.
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                assets.map((asset) => (
+                                filteredAssets.map((asset) => (
                                     <TableRow
                                         key={asset.id}
                                         className="hover:bg-gray-50 cursor-pointer group transition-colors"
@@ -350,10 +397,10 @@ export function AssetList() {
                 <div className="md:hidden divide-y divide-gray-200">
                     {loading ? (
                         <div className="p-8 text-center text-gray-500">Loading...</div>
-                    ) : assets.length === 0 ? (
-                        <div className="p-8 text-center text-gray-500">No assets found.</div>
+                    ) : filteredAssets.length === 0 ? (
+                        <div className="p-8 text-center text-gray-500">No assets found matching your filters.</div>
                     ) : (
-                        assets.map((asset) => (
+                        filteredAssets.map((asset) => (
                             <div
                                 key={asset.id}
                                 className="p-4 bg-white active:bg-gray-50 cursor-pointer"
