@@ -52,6 +52,39 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
         }
     };
 
+    const parseDate = (dateVal: any): string | null => {
+        if (!dateVal) return null;
+
+        // 1. Handle Excel Serial Number (e.g. 45166)
+        if (typeof dateVal === 'number') {
+            const date = XLSX.SSF.parse_date_code(dateVal);
+            // pad with leading zeros
+            const day = date.d.toString().padStart(2, '0');
+            const month = date.m.toString().padStart(2, '0');
+            return `${date.y}-${month}-${day}`;
+        }
+
+        // 2. Handle String formats
+        if (typeof dateVal === 'string') {
+            // Check for DD/MM/YYYY (e.g. 28/08/2024)
+            const ddmmyyyy = dateVal.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+            if (ddmmyyyy) {
+                const day = ddmmyyyy[1].padStart(2, '0');
+                const month = ddmmyyyy[2].padStart(2, '0');
+                const year = ddmmyyyy[3];
+                return `${year}-${month}-${day}`;
+            }
+
+            // Try standard Date parse (fallback)
+            const date = new Date(dateVal);
+            if (!isNaN(date.getTime())) {
+                return date.toISOString().split('T')[0];
+            }
+        }
+
+        return null;
+    };
+
     const parseFile = async (file: File) => {
         const reader = new FileReader();
         reader.onload = (e) => {
@@ -69,17 +102,20 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
                     if (!row['Full Name']) errors.push('Missing Full Name');
                     if (!row['Personal Email']) errors.push('Missing Email');
                     if (!row['Mobile Number']) errors.push('Missing Mobile');
+
+                    if (row['Date of Birth'] && !parseDate(row['Date of Birth'])) errors.push('Invalid DOB Format');
+                    if (row['Date of Joining'] && !parseDate(row['Date of Joining'])) errors.push('Invalid DOJ Format');
                     // Add more format checks here if needed (e.g. Email regex)
 
                     return {
                         fullName: row['Full Name'],
                         personalEmail: row['Personal Email'],
                         mobileNumber: row['Mobile Number']?.toString(),
-                        dateOfBirth: row['Date of Birth'], // Assuming YYYY-MM-DD or parseable
+                        dateOfBirth: parseDate(row['Date of Birth']) || '',
                         gender: row['Gender'] || 'Other',
                         department: row['Department'] || 'Unassigned',
                         designation: row['Designation'] || 'Trainee',
-                        dateOfJoining: row['Date of Joining'],
+                        dateOfJoining: parseDate(row['Date of Joining']) || '',
                         employeeId: row['Employee ID'], // Optional
                         jobType: row['Job Type'] || 'Permanent',
                         salary: row['Salary'],
@@ -135,11 +171,11 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
                         full_name: row.fullName,
                         personal_email: row.personalEmail,
                         mobile_number: row.mobileNumber,
-                        date_of_birth: row.dateOfBirth ? new Date(row.dateOfBirth).toISOString().split('T')[0] : null,
+                        date_of_birth: row.dateOfBirth || null,
                         gender: row.gender,
                         department: row.department,
                         designation: row.designation,
-                        date_of_joining: row.dateOfJoining ? new Date(row.dateOfJoining).toISOString().split('T')[0] : null,
+                        date_of_joining: row.dateOfJoining || null,
                         job_type: row.jobType,
                         current_salary: row.salary,
                         status: 'approved', // Direct import usually implies active
@@ -204,11 +240,11 @@ export function BulkImportModal({ isOpen, onClose, onSuccess }: BulkImportModalP
             'John Doe',
             'john.doe@example.com',
             '9876543210',
-            '1990-01-01',
+            '01/01/1990', // DD/MM/YYYY
             'Male',
             'Engineering',
             'Software Engineer',
-            '2023-01-01',
+            '01/01/2023', // DD/MM/YYYY
             '', // Employee ID optional
             'Permanent',
             '50000',
