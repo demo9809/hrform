@@ -45,6 +45,14 @@ export default function App() {
             }
           />
           <Route
+            path="/admin/onboarding"
+            element={
+              <ProtectedRoute>
+                <OnboardingForm isAdmin={true} />
+              </ProtectedRoute>
+            }
+          />
+          <Route
             path="/admin/employees"
             element={
               <ProtectedRoute>
@@ -77,7 +85,7 @@ export default function App() {
             }
           />
         </Routes>
-        <Toaster position="top-right" />
+        <Toaster position="bottom-right" />
       </BrowserRouter>
     </AuthProvider>
   );

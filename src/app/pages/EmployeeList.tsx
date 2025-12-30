@@ -8,10 +8,13 @@ import {
   Download,
   Eye,
   Trash2,
+  Upload,
 } from 'lucide-react';
 import { supabase } from '../contexts/AuthContext';
 import { SUPABASE_URL } from '../../utils/supabase/client';
 import { AdminLayout } from '../components/AdminLayout';
+import { BulkImportModal } from '../components/BulkImportModal';
+import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
 
 export function EmployeeList() {
   const navigate = useNavigate();
@@ -21,6 +24,13 @@ export function EmployeeList() {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDepartment, setFilterDepartment] = useState('');
 
+  const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+
+  // Bulk Delete State
+  const [selectedEmployeeIds, setSelectedEmployeeIds] = useState<string[]>([]);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
   useEffect(() => {
     fetchEmployees();
   }, []);
@@ -28,6 +38,8 @@ export function EmployeeList() {
   useEffect(() => {
     filterEmployeesList();
   }, [searchTerm, filterDepartment, employees]);
+
+  // ... existing code ...
 
   const fetchEmployees = async () => {
     try {
@@ -44,15 +56,15 @@ export function EmployeeList() {
       const { data: employeesData, error } = await supabase
         .from('employees')
         .select(`
-          *,
-          employee_addresses (
-            city
-          ),
-          employee_experience (
-            organization,
-            designation
-          )
-        `)
+      *,
+      employee_addresses (
+      city
+      ),
+      employee_experience (
+      organization,
+      designation
+      )
+      `)
         .order('submitted_at', { ascending: false });
 
       if (error) {
@@ -161,9 +173,58 @@ export function EmployeeList() {
     }
   };
 
+  const handleSelectAll = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.checked) {
+      const allIds = filteredEmployees.map(emp => emp.id);
+      setSelectedEmployeeIds(allIds);
+    } else {
+      setSelectedEmployeeIds([]);
+    }
+  };
+
+  const handleSelectOne = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (selectedEmployeeIds.includes(id)) {
+      setSelectedEmployeeIds(prev => prev.filter(empId => empId !== id));
+    } else {
+      setSelectedEmployeeIds(prev => [...prev, id]);
+    }
+  };
+
+  const handleBulkDelete = async () => {
+    setIsDeleting(true);
+    try {
+      const { error } = await supabase
+        .from('employees')
+        .delete()
+        .in('id', selectedEmployeeIds);
+
+      if (error) throw error;
+
+      toast.success(`Successfully deleted ${selectedEmployeeIds.length} employees`);
+      setSelectedEmployeeIds([]);
+      setIsDeleteModalOpen(false);
+      fetchEmployees();
+    } catch (error) {
+      console.error('Bulk delete error:', error);
+      toast.error('Failed to delete selected employees');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
   const departments = Array.from(
     new Set(employees.map((emp) => emp.company?.department).filter(Boolean))
   );
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-gray-600">Loading employees...</div>
+      </div>
+    );
+  }
+
 
   if (loading) {
     return (
@@ -178,13 +239,31 @@ export function EmployeeList() {
       title="Employee Management"
       description="View and manage all employee records"
       actions={
-        <button
-          onClick={() => window.open('/', '_blank')}
-          className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition"
-        >
-          <Users className="w-4 h-4" />
-          Add New
-        </button>
+        <div className="flex gap-2">
+          {selectedEmployeeIds.length > 0 && (
+            <button
+              onClick={() => setIsDeleteModalOpen(true)}
+              className="flex items-center gap-2 bg-red-50 text-red-600 border border-red-200 px-4 py-2 rounded-lg hover:bg-red-100 transition"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete Selected ({selectedEmployeeIds.length})
+            </button>
+          )}
+          <button
+            onClick={() => setIsImportModalOpen(true)}
+            className="flex items-center gap-2 bg-white border border-gray-300 text-gray-700 px-4 py-2 rounded-lg hover:bg-gray-50 transition"
+          >
+            <Upload className="w-4 h-4" />
+            Import Excel
+          </button>
+          <button
+            onClick={() => navigate('/admin/onboarding')}
+            className="flex items-center gap-2 bg-teal-600 text-white px-4 py-2 rounded-lg hover:bg-teal-700 transition"
+          >
+            <Users className="w-4 h-4" />
+            Add New
+          </button>
+        </div>
       }
     >
       {/* Search and Filter */}
@@ -228,6 +307,14 @@ export function EmployeeList() {
           <table className="w-full">
             <thead className="bg-gray-50 border-b border-gray-200">
               <tr>
+                <th className="px-6 py-4 w-4">
+                  <input
+                    type="checkbox"
+                    className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                    checked={filteredEmployees.length > 0 && selectedEmployeeIds.length === filteredEmployees.length}
+                    onChange={handleSelectAll}
+                  />
+                </th>
                 <th className="text-left px-6 py-4 text-sm text-gray-700">Employee</th>
                 <th className="text-left px-6 py-4 text-sm text-gray-700">Employee ID</th>
                 <th className="text-left px-6 py-4 text-sm text-gray-700">Submission Date</th>
@@ -240,9 +327,21 @@ export function EmployeeList() {
                 filteredEmployees.map((employee) => (
                   <tr
                     key={employee.id}
-                    className="hover:bg-gray-50 transition-colors cursor-pointer"
+                    className={`hover:bg-gray-50 transition-colors cursor-pointer ${selectedEmployeeIds.includes(employee.id) ? 'bg-teal-50/30' : ''}`}
                     onClick={() => navigate(`/admin/employees/${employee.id}`)}
                   >
+                    <td className="px-6 py-4" onClick={(e) => e.stopPropagation()}>
+                      <input
+                        type="checkbox"
+                        className="rounded border-gray-300 text-teal-600 focus:ring-teal-500"
+                        checked={selectedEmployeeIds.includes(employee.id)}
+                        onChange={(e) => {
+                          // Handled by onClick wrapper to stop propagation, but we need onChange to silence react warning
+                          // Actually better to use onClick on the input or parent td
+                        }}
+                        onClick={(e) => handleSelectOne(e, employee.id)}
+                      />
+                    </td>
                     <td className="px-6 py-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 bg-gray-200 rounded-full flex items-center justify-center overflow-hidden">
@@ -360,6 +459,24 @@ export function EmployeeList() {
           )}
         </div>
       </div>
-    </AdminLayout>
+      {/* Mobile list view logic would be here if implemented */}
+
+      <BulkImportModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        onSuccess={() => {
+          fetchEmployees();
+          setIsImportModalOpen(false);
+        }}
+      />
+      <DeleteConfirmationModal
+        isOpen={isDeleteModalOpen}
+        onClose={() => setIsDeleteModalOpen(false)}
+        onConfirm={handleBulkDelete}
+        title="Delete Employees"
+        message={`Are you sure you want to delete ${selectedEmployeeIds.length} employees? This action cannot be undone.`}
+        isDeleting={isDeleting}
+      />
+    </AdminLayout >
   );
 }

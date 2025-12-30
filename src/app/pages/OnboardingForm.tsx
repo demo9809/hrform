@@ -1,7 +1,9 @@
 import { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { toast } from 'sonner';
 import { ChevronLeft, ChevronRight, Check, Upload, User, Plus, X } from 'lucide-react';
 import { supabase } from '../../utils/supabase/client';
+import { AdminLayout } from '../components/AdminLayout';
 
 const TOTAL_STEPS = 9;
 
@@ -24,7 +26,12 @@ interface WorkExperienceEntry {
   relievingLetter: File | null;
 }
 
-export function OnboardingForm() {
+interface OnboardingFormProps {
+  isAdmin?: boolean;
+}
+
+export function OnboardingForm({ isAdmin = false }: OnboardingFormProps) {
+  const navigate = useNavigate();
   const [currentStep, setCurrentStep] = useState(1);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -242,6 +249,37 @@ export function OnboardingForm() {
   };
 
   const validateStep = (step: number): boolean => {
+    // If Admin, bypass ALL mandatory field checks
+    // Only keep format validations if data is present
+    if (isAdmin) {
+      switch (step) {
+        case 1: // Personal Identity
+          if (formData.personalEmail && (
+            formData.personalEmail.toLowerCase().includes('@company.') ||
+            formData.personalEmail.toLowerCase().includes('@work.')
+          )) {
+            toast.error('Please use personal email, not company email');
+            return false;
+          }
+          return true;
+        case 2: // Address
+          if (formData.pincode && !/^\d{6}$/.test(formData.pincode)) {
+            toast.error('Pincode must be 6 digits');
+            return false;
+          }
+          return true;
+        case 3: // Government
+          if (formData.aadhaarNumber && !validateAadhaar(formData.aadhaarNumber)) return false;
+          if (formData.panNumber && !validatePAN(formData.panNumber)) return false;
+          return true;
+        case 4: // Bank
+          if (formData.ifscCode && !validateIFSC(formData.ifscCode)) return false;
+          return true;
+        default:
+          return true;
+      }
+    }
+
     switch (step) {
       case 1: // Personal Identity
         if (!formData.fullName || !formData.dateOfBirth || !formData.gender ||
@@ -433,7 +471,7 @@ export function OnboardingForm() {
           id: dbId, // Explicitly set UUID
           employee_id: employeeId,
           full_name: formData.fullName,
-          date_of_birth: formData.dateOfBirth,
+          date_of_birth: formData.dateOfBirth || null,
           gender: formData.gender,
           blood_group: formData.bloodGroup,
           marital_status: formData.maritalStatus,
@@ -513,7 +551,7 @@ export function OnboardingForm() {
           qualification: e.qualification,
           course_specialization: e.courseSpecialization,
           institution: e.institution,
-          year_of_completion: e.yearOfCompletion,
+          year_of_completion: e.yearOfCompletion || null,
           certificate_path: e.certificate_path
         }));
         insertPromises.push(supabase.from('employee_education').insert(eduRecords));
@@ -525,7 +563,7 @@ export function OnboardingForm() {
           employee_id: dbId,
           organization: e.organization,
           designation: e.designation,
-          end_date: e.endDate,
+          end_date: e.endDate || null,
           reason_for_leaving: e.reasonForLeaving,
           experience_letter_path: e.experience_letter_path,
           relieving_letter_path: e.relieving_letter_path
@@ -556,18 +594,19 @@ export function OnboardingForm() {
     }
   };
 
-  return (
-    <div className="min-h-screen bg-gray-50 py-8">
-      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
-        {/* Header */}
-        {/* Header & Logo */}
-        <div className="text-left mb-6">
-          <div className="flex justify-start mb-4">
-            <img src="/narrative-logo.png" alt="Narrative Space" className="h-10 object-contain" />
+  const formContent = (
+    <div className={isAdmin ? "" : "min-h-screen bg-gray-50 py-8"}>
+      <div className={isAdmin ? "" : "max-w-4xl mx-auto px-4 sm:px-6 lg:px-8"}>
+        {/* Header - Only show if NOT admin, as AdminLayout handles title */}
+        {!isAdmin && (
+          <div className="text-left mb-6">
+            <div className="flex justify-start mb-4">
+              <img src="/narrative-logo.png" alt="Narrative Space" className="h-10 object-contain" />
+            </div>
+            <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">Employee Onboarding</h1>
+            <p className="text-sm text-gray-600">Please provide accurate information as per official documents</p>
           </div>
-          <h1 className="text-xl md:text-2xl font-bold text-gray-900 mb-1">Employee Onboarding</h1>
-          <p className="text-sm text-gray-600">Please provide accurate information as per official documents</p>
-        </div>
+        )}
 
         {/* Progress Display */}
         <div className="mb-8">
@@ -698,6 +737,22 @@ export function OnboardingForm() {
       </div>
     </div>
   );
+
+  if (isAdmin) {
+    return (
+      <AdminLayout
+        title="New Employee Onboarding"
+        description="Enter details for the new employee. Mandatory fields are relaxed for HR."
+        onBack={() => navigate('/admin/employees')}
+      >
+        <div className="max-w-4xl mx-auto">
+          {formContent}
+        </div>
+      </AdminLayout>
+    );
+  }
+
+  return formContent;
 }
 
 // Step 1: Personal Identity Details
