@@ -153,6 +153,37 @@ export const AssetService = {
 
 
 
+    async bulkAssignAsset(
+        assetIds: string[],
+        employeeId: string,
+        details: { condition: string; remarks?: string }
+    ) {
+        // Iterate and assign each asset
+        // In a real scenario, we might want a bulk insert/rpc, but looping is fine for small batches.
+        const promises = assetIds.map(id =>
+            this.assignAsset(id, employeeId, {
+                condition: details.condition,
+                remarks: details.remarks,
+                // assignedBy is handled in assignAsset or needs to be passed if changed
+            })
+        );
+        return Promise.all(promises);
+    },
+
+    async bulkUpdateCategory(
+        assetIds: string[],
+        category: string
+    ) {
+        const { data, error } = await supabase
+            .from('assets')
+            .update({ category })
+            .in('id', assetIds)
+            .select();
+
+        if (error) throw error;
+        return data;
+    },
+
     async deleteAsset(id: string) {
         // 1. Delete all assignments for this asset (Manual Cascade)
         const { error: assignmentError } = await supabase

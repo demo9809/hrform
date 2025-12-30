@@ -43,6 +43,7 @@ const ASSET_CATEGORIES = [
     'Camera Accessories',
     'Mic',
     'Light',
+    'External Storage',
     'Other',
 ];
 

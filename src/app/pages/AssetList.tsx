@@ -4,7 +4,8 @@ import { Button } from '../components/ui/button';
 import { Input } from '../components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '../components/ui/table';
-import { Plus, Search, Filter, Monitor, History as HistoryIcon, Download, Trash2, Cpu, Plug, Camera, Mic, Lightbulb, Aperture } from 'lucide-react';
+import { Checkbox } from '../components/ui/checkbox';
+import { Plus, Search, Filter, Monitor, History as HistoryIcon, Download, Trash2, Cpu, Plug, Camera, Mic, Lightbulb, Aperture, ChevronLeft, ChevronRight, Layers, UserPlus, HardDrive } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import * as XLSX from 'xlsx';
@@ -12,6 +13,8 @@ import { AssetService } from '../../utils/assetService';
 import { Asset } from '../../types/database';
 import { AddAssetModal } from '../components/AddAssetModal';
 import { DeleteAssetModal } from '../components/DeleteAssetModal';
+import { BulkAssignModal } from '../components/BulkAssignModal';
+import { BulkUpdateCategoryModal } from '../components/BulkUpdateCategoryModal';
 import { Link, useNavigate } from 'react-router-dom';
 import { Badge } from '../components/ui/badge';
 
@@ -21,11 +24,21 @@ export function AssetList() {
     const [loading, setLoading] = useState(true);
     const [searchTerm, setSearchTerm] = useState('');
     const [statusFilter, setStatusFilter] = useState<string>('all');
+    const [categoryFilter, setCategoryFilter] = useState<string>('all');
     const [isAddModalOpen, setIsAddModalOpen] = useState(false);
     const [assetToDelete, setAssetToDelete] = useState<Asset | null>(null);
 
+    const [itemsPerPage, setItemsPerPage] = useState(10);
+    const [currentPage, setCurrentPage] = useState(1);
+
+    // Bulk Selection State
+    const [selectedAssetIds, setSelectedAssetIds] = useState<string[]>([]);
+    const [isBulkAssignOpen, setIsBulkAssignOpen] = useState(false);
+    const [isBulkCategoryOpen, setIsBulkCategoryOpen] = useState(false);
+
     const fetchAssets = async () => {
         setLoading(true);
+        setSelectedAssetIds([]); // Clear selection on refresh
         try {
             // Fetch ALL assets to calculate stats content locally
             const data = await AssetService.fetchAssets({});
@@ -40,14 +53,45 @@ export function AssetList() {
     // Client-side filtering
     const filteredAssets = assets.filter(asset => {
         const matchesStatus = statusFilter === 'all' || asset.status === statusFilter;
+        const matchesCategory = categoryFilter === 'all' || asset.category === categoryFilter;
         const searchLower = searchTerm.toLowerCase();
         const matchesSearch =
             asset.name.toLowerCase().includes(searchLower) ||
             asset.asset_code.toLowerCase().includes(searchLower) ||
             (asset.serial_number || '').toLowerCase().includes(searchLower);
 
-        return matchesStatus && matchesSearch;
+        return matchesStatus && matchesCategory && matchesSearch;
     });
+
+    // Reset pagination when filters change
+    useEffect(() => {
+        setCurrentPage(1);
+        setSelectedAssetIds([]); // Clear selection when filters change to avoid confusion
+    }, [searchTerm, statusFilter, categoryFilter]);
+
+    // Selection Handlers
+    const toggleSelectAll = () => {
+        if (selectedAssetIds.length === paginatedAssets.length && paginatedAssets.length > 0 && selectedAssetIds.every(id => paginatedAssets.some(a => a.id === id))) {
+            // If all currently visible are selected, deselect them
+            setSelectedAssetIds([]);
+        } else {
+            // Select all visible on current page
+            setSelectedAssetIds(paginatedAssets.map(a => a.id));
+        }
+    };
+
+    const toggleSelectAsset = (id: string) => {
+        if (selectedAssetIds.includes(id)) {
+            setSelectedAssetIds(prev => prev.filter(aId => aId !== id));
+        } else {
+            setSelectedAssetIds(prev => [...prev, id]);
+        }
+    };
+
+    // Pagination Logic
+    const totalPages = Math.ceil(filteredAssets.length / itemsPerPage);
+    const startIndex = (currentPage - 1) * itemsPerPage;
+    const paginatedAssets = filteredAssets.slice(startIndex, startIndex + itemsPerPage);
 
     // Calculate Counts by Category
     const categoryCounts = assets.reduce((acc, asset) => {
@@ -251,10 +295,21 @@ export function AssetList() {
                         />
                     </div>
 
-                    <div className="flex items-center gap-2 w-full md:w-auto">
-                        <Filter className="w-4 h-4 text-gray-500" />
+                    <div className="flex gap-2 w-full md:w-auto">
+                        <Select value={categoryFilter} onValueChange={setCategoryFilter}>
+                            <SelectTrigger className="w-full md:w-[180px] bg-white border border-gray-300 focus:ring-teal-500">
+                                <SelectValue placeholder="Filter by Category" />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="all">All Categories</SelectItem>
+                                {Object.keys(categoryCounts).sort().map(cat => (
+                                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                                ))}
+                            </SelectContent>
+                        </Select>
+
                         <Select value={statusFilter} onValueChange={setStatusFilter}>
-                            <SelectTrigger className="w-[180px] bg-white border border-gray-300 focus:ring-teal-500">
+                            <SelectTrigger className="w-full md:w-[180px] bg-white border border-gray-300 focus:ring-teal-500">
                                 <SelectValue placeholder="Filter by Status" />
                             </SelectTrigger>
                             <SelectContent>
@@ -272,10 +327,36 @@ export function AssetList() {
 
                 {/* Table for Desktop */}
                 <div className="hidden md:block overflow-x-auto">
+                    {/* Bulk Actions Bar */}
+                    {selectedAssetIds.length > 0 && (
+                        <div className="bg-teal-50 border border-teal-200 rounded-lg p-2 mb-4 flex items-center justify-between animate-in fade-in slide-in-from-top-2">
+                            <div className="flex items-center gap-2 pl-2">
+                                <span className="text-sm font-medium text-teal-800">{selectedAssetIds.length} assets selected</span>
+                            </div>
+                            <div className="flex items-center gap-2">
+                                <Button size="sm" variant="outline" className="bg-white border-teal-200 text-teal-700 hover:bg-teal-100" onClick={() => setIsBulkCategoryOpen(true)}>
+                                    <Layers className="w-4 h-4 mr-2" />
+                                    Change Category
+                                </Button>
+                                <Button size="sm" className="bg-teal-600 hover:bg-teal-700 text-white" onClick={() => setIsBulkAssignOpen(true)}>
+                                    <UserPlus className="w-4 h-4 mr-2" />
+                                    Assign Selected
+                                </Button>
+                            </div>
+                        </div>
+                    )}
+
                     <Table>
                         <TableHeader className="bg-gray-50/80">
                             <TableRow>
-                                <TableHead className="font-semibold text-gray-600 pl-6">Asset Info</TableHead>
+                                <TableHead className="w-[50px] pl-6">
+                                    <Checkbox
+                                        checked={paginatedAssets.length > 0 && selectedAssetIds.length === paginatedAssets.length && paginatedAssets.every(a => selectedAssetIds.includes(a.id))}
+                                        onCheckedChange={toggleSelectAll}
+                                        aria-label="Select all"
+                                    />
+                                </TableHead>
+                                <TableHead className="font-semibold text-gray-600">Asset Info</TableHead>
                                 <TableHead className="font-semibold text-gray-600">Category</TableHead>
                                 <TableHead className="font-semibold text-gray-600">Status</TableHead>
                                 <TableHead className="font-semibold text-gray-600">Assigned To</TableHead>
@@ -299,13 +380,25 @@ export function AssetList() {
                                     </TableCell>
                                 </TableRow>
                             ) : (
-                                filteredAssets.map((asset) => (
+                                paginatedAssets.map((asset) => (
                                     <TableRow
                                         key={asset.id}
-                                        className="hover:bg-gray-50 cursor-pointer group transition-colors"
-                                        onClick={() => navigate(`/admin/assets/${asset.id}`)}
+                                        className={`hover:bg-gray-50 cursor-pointer group transition-colors ${selectedAssetIds.includes(asset.id) ? 'bg-teal-50/30' : ''}`}
+                                        onClick={(e) => {
+                                            // Handle row click navigation, but ignore if clicking checkbox
+                                            if ((e.target as HTMLElement).closest('[role="checkbox"]')) return;
+                                            navigate(`/admin/assets/${asset.id}`);
+                                        }}
                                     >
                                         <TableCell className="pl-6">
+                                            <Checkbox
+                                                checked={selectedAssetIds.includes(asset.id)}
+                                                onCheckedChange={() => toggleSelectAsset(asset.id)}
+                                                onClick={(e) => e.stopPropagation()}
+                                                aria-label={`Select ${asset.name}`}
+                                            />
+                                        </TableCell>
+                                        <TableCell>
                                             <div className="flex items-center gap-3">
                                                 <div className="w-10 h-10 rounded-lg bg-teal-50 flex items-center justify-center text-teal-600">
                                                     {getCategoryIcon(asset.category)}
@@ -445,6 +538,60 @@ export function AssetList() {
                         ))
                     )}
                 </div>
+
+                {/* Pagination Controls */}
+                <div className="p-4 border-t border-gray-200 bg-gray-50 flex flex-col md:flex-row gap-4 justify-between items-center">
+                    <div className="flex items-center gap-2 text-sm text-gray-600">
+                        <span>Show</span>
+                        <Select
+                            value={itemsPerPage.toString()}
+                            onValueChange={(val) => {
+                                setItemsPerPage(Number(val));
+                                setCurrentPage(1);
+                            }}
+                        >
+                            <SelectTrigger className="w-[70px] bg-white h-8 border-gray-300">
+                                <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                                <SelectItem value="5">5</SelectItem>
+                                <SelectItem value="10">10</SelectItem>
+                                <SelectItem value="20">20</SelectItem>
+                                <SelectItem value="50">50</SelectItem>
+                                <SelectItem value="100">100</SelectItem>
+                            </SelectContent>
+                        </Select>
+                        <span>entries</span>
+                        <span className="text-gray-400 mx-2">|</span>
+                        <span>
+                            Showing {Math.min(filteredAssets.length, (currentPage - 1) * itemsPerPage + 1)} to {Math.min(filteredAssets.length, currentPage * itemsPerPage)} of {filteredAssets.length} entries
+                        </span>
+                    </div>
+
+                    <div className="flex items-center gap-2">
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(prev => Math.max(1, prev - 1))}
+                            disabled={currentPage === 1}
+                            className="h-8 w-8 p-0"
+                        >
+                            <ChevronLeft className="w-4 h-4" />
+                        </Button>
+                        <div className="text-sm font-medium text-gray-900">
+                            Page {currentPage} of {Math.max(1, totalPages)}
+                        </div>
+                        <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => setCurrentPage(prev => Math.min(totalPages, prev + 1))}
+                            disabled={currentPage === totalPages || totalPages === 0}
+                            className="h-8 w-8 p-0"
+                        >
+                            <ChevronRight className="w-4 h-4" />
+                        </Button>
+                    </div>
+                </div>
             </div>
 
             <AddAssetModal
@@ -460,6 +607,24 @@ export function AssetList() {
                     fetchAssets();
                     setAssetToDelete(null);
                 }}
+            />
+            <BulkAssignModal
+                isOpen={isBulkAssignOpen}
+                onClose={() => setIsBulkAssignOpen(false)}
+                onSuccess={() => {
+                    fetchAssets();
+                    setSelectedAssetIds([]);
+                }}
+                assetIds={selectedAssetIds}
+            />
+            <BulkUpdateCategoryModal
+                isOpen={isBulkCategoryOpen}
+                onClose={() => setIsBulkCategoryOpen(false)}
+                onSuccess={() => {
+                    fetchAssets();
+                    setSelectedAssetIds([]);
+                }}
+                assetIds={selectedAssetIds}
             />
         </AdminLayout >
     );

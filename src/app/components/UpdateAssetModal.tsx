@@ -30,7 +30,7 @@ interface AssetFormValues {
 }
 
 const ASSET_CATEGORIES = [
-    'Laptop', 'Monitor', 'Mouse', 'Keyboard', 'Headphones', 'Charger', 'Phone', 'Tablet', 'Adapter', 'CPU', 'Camera', 'Camera Accessories', 'Mic', 'Light', 'Other',
+    'Laptop', 'Monitor', 'Mouse', 'Keyboard', 'Headphones', 'Charger', 'Phone', 'Tablet', 'Adapter', 'CPU', 'Camera', 'Camera Accessories', 'Mic', 'Light', 'External Storage', 'Other',
 ];
 
 export function EditAssetModal({ isOpen, onClose, onSuccess, asset }: EditAssetModalProps) {
