@@ -26,7 +26,8 @@ import {
   Laptop,
   Smartphone,
   HardDrive,
-  MousePointer
+  MousePointer,
+  TrendingUp
 } from 'lucide-react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
@@ -38,6 +39,10 @@ import { AssetService } from '../../utils/assetService';
 import { AssetAssignment } from '../../types/database';
 import { Badge } from '../components/ui/badge';
 import { AdminLayout } from '../components/AdminLayout';
+import { SalaryTimeline } from '../components/SalaryTimeline';
+import { AddSalaryRevisionModal } from '../components/AddSalaryRevisionModal';
+import { EditSalaryRevisionModal } from '../components/EditSalaryRevisionModal';
+import { SalaryRevision } from '../../types/database';
 
 export function EmployeeDetail() {
   const { id } = useParams();
@@ -50,6 +55,10 @@ export function EmployeeDetail() {
   const [isCompanyModalOpen, setIsCompanyModalOpen] = useState(false);
   const [assignedAssets, setAssignedAssets] = useState<AssetAssignment[]>([]);
   const [incrementHistory, setIncrementHistory] = useState<any[]>([]);
+  const [salaryRevisions, setSalaryRevisions] = useState<SalaryRevision[]>([]);
+  const [isSalaryModalOpen, setIsSalaryModalOpen] = useState(false);
+  const [selectedRevision, setSelectedRevision] = useState<SalaryRevision | null>(null);
+  const [isEditSalaryModalOpen, setIsEditSalaryModalOpen] = useState(false);
 
   // Helper to format date as DD-MM-YYYY
   const formatDate = (dateString: string | null | undefined) => {
@@ -87,7 +96,8 @@ export function EmployeeDetail() {
           employee_bank_details (*),
           employee_education (*),
           employee_experience (*),
-          employee_emergency_contacts (*)
+          employee_emergency_contacts (*),
+          salary_revisions (*)
         `)
         .eq('id', id)
         .single();
@@ -132,12 +142,26 @@ export function EmployeeDetail() {
         );
       }
 
+      // Process relational data (Handle both Array and Object responses due to One-to-One inference)
+      const getRelationalData = (data: any) => Array.isArray(data) ? data[0] : data;
+
+      const identityData = getRelationalData(data.employee_identities);
+      const bankData = getRelationalData(data.employee_bank_details);
+      const emergencyData = getRelationalData(data.employee_emergency_contacts);
+
       // Map relational data back to the nested structure expected by the UI
-      const mappedEmployee = {
+      const mappedEmployee: any = { // Changed to 'any' to avoid type errors without defining Employee type
         id: data.id,
         employeeId: data.employee_id,
         submittedAt: data.submitted_at,
         idCardPrepared: data.id_card_prepared,
+        status: data.status, // Added
+        dateOfJoining: data.date_of_joining, // Added
+        department: data.department, // Added
+        designation: data.designation, // Added
+        workEmail: data.work_email, // Added
+        managerId: data.manager_id, // Added
+        idCardStatus: data.id_card_status, // Added
 
         personalIdentity: {
           fullName: data.full_name,
@@ -160,17 +184,17 @@ export function EmployeeDetail() {
         },
 
         governmentTax: {
-          aadhaarNumber: data.employee_identities?.[0]?.aadhaar_number,
-          panNumber: data.employee_identities?.[0]?.pan_number,
-          passportNumber: data.employee_identities?.[0]?.passport_number,
-          passportExpiry: data.employee_identities?.[0]?.passport_expiry,
+          aadhaarNumber: identityData?.aadhaar_number,
+          panNumber: identityData?.pan_number,
+          passportNumber: identityData?.passport_number,
+          passportExpiry: identityData?.passport_expiry,
         },
 
         bankDetails: {
-          accountHolderName: data.employee_bank_details?.[0]?.account_holder_name,
-          bankName: data.employee_bank_details?.[0]?.bank_name,
-          accountNumber: data.employee_bank_details?.[0]?.account_number,
-          ifscCode: data.employee_bank_details?.[0]?.ifsc_code,
+          accountHolderName: bankData?.account_holder_name,
+          bankName: bankData?.bank_name,
+          accountNumber: bankData?.account_number,
+          ifscCode: bankData?.ifsc_code,
         },
 
         education: data.employee_education?.map((edu: any) => ({
@@ -192,9 +216,9 @@ export function EmployeeDetail() {
         },
 
         emergencyContact: {
-          name: data.employee_emergency_contacts?.[0]?.name,
-          relationship: data.employee_emergency_contacts?.[0]?.relationship,
-          phone: data.employee_emergency_contacts?.[0]?.phone,
+          name: emergencyData?.name,
+          relationship: emergencyData?.relationship,
+          phone: emergencyData?.phone,
         },
 
         company: {
@@ -219,6 +243,7 @@ export function EmployeeDetail() {
       };
 
       setEmployee(mappedEmployee);
+      setSalaryRevisions(data.salary_revisions || []);
 
       // Fetch assigned assets
       if (id) {
@@ -300,6 +325,30 @@ export function EmployeeDetail() {
     }
 
     toast.success('Opening all documents...');
+  };
+
+  const handleEditRevision = (revision: SalaryRevision) => {
+    setSelectedRevision(revision);
+    setIsEditSalaryModalOpen(true);
+  };
+
+  const handleDeleteRevision = async (id: string) => {
+    if (!window.confirm('Are you sure you want to delete this salary revision?')) return;
+
+    try {
+      const { error } = await supabase
+        .from('salary_revisions')
+        .delete()
+        .eq('id', id);
+
+      if (error) throw error;
+
+      toast.success('Salary revision deleted');
+      fetchEmployee();
+    } catch (error) {
+      console.error('Delete revision error:', error);
+      toast.error('Failed to delete revision');
+    }
   };
 
   // Helper to load image for PDF with CORS handling
@@ -818,6 +867,31 @@ export function EmployeeDetail() {
             </SectionCard>
 
 
+            {/* Compensation History (New Module) */}
+            <div className="bg-white rounded-xl shadow-sm border border-gray-200 p-6 md:col-span-2">
+              <div className="flex items-center justify-between mb-6">
+                <div className="flex items-center gap-2">
+                  <TrendingUp className="w-5 h-5 text-gray-400" />
+                  <h2 className="text-lg font-semibold text-gray-900">Compensation History</h2>
+                </div>
+                <button
+                  onClick={() => setIsSalaryModalOpen(true)}
+                  className="flex items-center gap-1 text-sm bg-teal-50 text-teal-700 px-3 py-1.5 rounded-lg hover:bg-teal-100 transition-colors"
+                >
+                  <Edit className="w-3 h-3" />
+                  Add Revision
+                </button>
+              </div>
+
+              <SalaryTimeline
+                revisions={salaryRevisions}
+                onEdit={handleEditRevision}
+                onDelete={handleDeleteRevision}
+                currentSalary={employee?.company?.currentSalary}
+                nextIncrementDate={employee?.company?.nextIncrementDate}
+              />
+            </div>
+
             {/* Assigned Assets & History */}
             <SectionCard title="Asset Management" icon={<Monitor className="w-5 h-5" />}>
               <div className="space-y-6">
@@ -1040,6 +1114,19 @@ export function EmployeeDetail() {
           onUpdate={fetchEmployee}
         />
       )}
+      <AddSalaryRevisionModal
+        isOpen={isSalaryModalOpen}
+        onClose={() => setIsSalaryModalOpen(false)}
+        onSuccess={fetchEmployee}
+        employeeId={id || ''}
+        currentSalary={employee?.company?.currentSalary}
+      />
+      <EditSalaryRevisionModal
+        isOpen={isEditSalaryModalOpen}
+        onClose={() => setIsEditSalaryModalOpen(false)}
+        onSuccess={fetchEmployee}
+        revision={selectedRevision}
+      />
     </AdminLayout>
   );
 }

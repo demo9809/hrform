@@ -147,15 +147,14 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
             if (empError) throw empError;
 
             // 2. Update Government & Tax (Identities Table)
-            // We assume one identity record per employee for now.
             const { error: identityError } = await supabase
                 .from('employee_identities')
-                .update({
+                .upsert({
+                    employee_id: employee.id,
                     aadhaar_number: formData.governmentTax.aadhaarNumber,
                     pan_number: formData.governmentTax.panNumber,
                     passport_number: formData.governmentTax.passportNumber,
-                })
-                .eq('employee_id', employee.id);
+                }, { onConflict: 'employee_id' });
 
             if (identityError) throw identityError;
 
@@ -163,50 +162,50 @@ export function EditEmployeeModal({ employee, isOpen, onClose, onUpdate }: EditE
             // Current Address
             const { error: currAddrError } = await supabase
                 .from('employee_addresses')
-                .update({
+                .upsert({
+                    employee_id: employee.id,
+                    type: 'current',
                     address_line: formData.address.currentAddress,
                     city: formData.address.city,
                     state: formData.address.state,
                     pincode: formData.address.pincode
-                })
-                .eq('employee_id', employee.id)
-                .eq('type', 'current');
+                }, { onConflict: 'employee_id, type' });
 
             if (currAddrError) throw currAddrError;
 
             // Permanent Address
             const { error: permAddrError } = await supabase
                 .from('employee_addresses')
-                .update({
+                .upsert({
+                    employee_id: employee.id,
+                    type: 'permanent',
                     address_line: formData.address.permanentAddress
-                })
-                .eq('employee_id', employee.id)
-                .eq('type', 'permanent');
+                }, { onConflict: 'employee_id, type' });
 
             if (permAddrError) throw permAddrError;
 
             // 4. Update Bank Details
             const { error: bankError } = await supabase
                 .from('employee_bank_details')
-                .update({
+                .upsert({
+                    employee_id: employee.id,
                     account_holder_name: formData.bankDetails.accountHolderName,
                     bank_name: formData.bankDetails.bankName,
                     account_number: formData.bankDetails.accountNumber,
                     ifsc_code: formData.bankDetails.ifscCode,
-                })
-                .eq('employee_id', employee.id);
+                }, { onConflict: 'employee_id' });
 
             if (bankError) throw bankError;
 
             // 5. Update Emergency Contact
             const { error: emergencyError } = await supabase
                 .from('employee_emergency_contacts')
-                .update({
+                .upsert({
+                    employee_id: employee.id,
                     name: formData.emergencyContact.name,
                     relationship: formData.emergencyContact.relationship,
                     phone: formData.emergencyContact.phone,
-                })
-                .eq('employee_id', employee.id);
+                }, { onConflict: 'employee_id' });
 
             if (emergencyError) throw emergencyError;
 

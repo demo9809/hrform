@@ -49,6 +49,17 @@ export interface IncrementHistory {
     created_at: string;
 }
 
+export interface SalaryRevision {
+    id: string;
+    employee_id: string;
+    amount: number;
+    effective_date: string;
+    reason: string;
+    comments?: string;
+    created_at: string;
+    created_by?: string;
+}
+
 export interface EmployeeIdentity {
     id: string;
     employee_id: string;
